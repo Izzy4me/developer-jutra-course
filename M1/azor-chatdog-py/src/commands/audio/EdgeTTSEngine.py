@@ -1,8 +1,11 @@
 import subprocess
+import asyncio
+import threading
 from cli import console
 import os
 from .TTSEngine import TTSEngine
 from .pydub_utils import HAVE_PYDUB, AudioSegment
+from .async_edgetts import AsyncEdgeTTSProcessor, TTSRequest
 
 # ============================================================================
 # Microsoft Edge TTS Engine
@@ -15,6 +18,9 @@ class EdgeTTSEngine(TTSEngine):
     def __init__(self):
         super().__init__("Microsoft Edge TTS")
         self.edge_tts = None
+        self._async_processor = None
+        self._init_lock = threading.Lock()
+        self._batch_mode_enabled = True
 
     def initialize(self) -> bool:
         """Initialize Microsoft Edge TTS"""
@@ -36,8 +42,10 @@ class EdgeTTSEngine(TTSEngine):
             
             if voices:
                 self.edge_tts = edge_tts
+                # Initialize async processor for batch operations
+                self._async_processor = AsyncEdgeTTSProcessor(max_concurrent=6)
                 self.is_available = True
-                console.print_info("✅ Microsoft Edge TTS gotowy (doskonała jakość polskiego i angielskiego)")
+                console.print_info("✅ Microsoft Edge TTS gotowy (doskonała jakość polskiego i angielskiego + async batch)")
                 return True
             else:
                 console.print_warning("⚠️  Microsoft Edge TTS: brak dostępnych głosów")
@@ -150,3 +158,46 @@ class EdgeTTSEngine(TTSEngine):
         except Exception as e:
             console.print_error(f"ffmpeg conversion error: {e}")
             return False
+    
+    def synthesize_batch_optimized(self, texts_and_paths: list, language: str = 'pl') -> list:
+        """Optimized batch processing using async EdgeTTS processor"""
+        if not self.is_available or not self._async_processor:
+            return [False] * len(texts_and_paths)
+        
+        try:
+            # Convert to TTSRequest objects
+            requests = []
+            for text, output_path, rate, role in texts_and_paths:
+                request = TTSRequest(
+                    text=text,
+                    output_path=output_path,
+                    language=language,
+                    rate=rate,
+                    role=role
+                )
+                requests.append(request)
+            
+            # Run async batch processing
+            results = asyncio.run(self._async_processor.batch_synthesize(requests))
+            
+            # Convert results to boolean list
+            return [result.success for result in results]
+            
+        except Exception as e:
+            console.print_error(f"Async batch synthesis failed: {e}")
+            return [False] * len(texts_and_paths)
+    
+    def supports_batch_optimization(self) -> bool:
+        """Check if this engine supports optimized batch processing"""
+        return self._batch_mode_enabled and self._async_processor is not None
+    
+    def get_performance_stats(self) -> dict:
+        """Get performance statistics from async processor"""
+        if self._async_processor:
+            return self._async_processor.get_statistics()
+        return {}
+    
+    def reset_performance_stats(self):
+        """Reset performance statistics"""
+        if self._async_processor:
+            self._async_processor.reset_statistics()

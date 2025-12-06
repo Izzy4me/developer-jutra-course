@@ -8,16 +8,25 @@ import tempfile
 import subprocess
 import sys
 import wave
+import shutil
+import time
 from typing import List, Dict, Optional
+from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from files.config import LOG_DIR
 from cli import console
 
 from .TTSEngine import TTSEngine
 from .XTTSv2Engine import XTTSv2TTSEngine
+from .config import ConfigManager
+from .text_processor import TextChunker
+from .streaming_infrastructure import StreamingAudioManager, StreamingConfig
+from .edgetts_streaming import EdgeTTSStreamingEngine
 from .EdgeTTSEngine import EdgeTTSEngine
 from .PyTTSX3Engine import PyTTSX3Engine
 from .pydub_utils import HAVE_PYDUB, AudioSegment, pydub_play
+from .text_processor import TextChunker, TextChunk
+from .config import get_tts_config, get_config_manager
 
 
 # ============================================================================
@@ -25,12 +34,27 @@ from .pydub_utils import HAVE_PYDUB, AudioSegment, pydub_play
 # ============================================================================
 
 class TTSManager:
-    """Manages multiple TTS engines with automatic fallback"""
+    """Manages multiple TTS engines with automatic fallback and optimization"""
     
     def __init__(self):
         self.engines: List[TTSEngine] = []
         self.active_engine: Optional[TTSEngine] = None
         self._engine_cache = {}  # Cache engines by class name
+        
+        # Initialize optimization components
+        self.config = get_tts_config()
+        self.config_manager = ConfigManager()
+        self.text_chunker = TextChunker()
+        
+        # Streaming infrastructure
+        self.streaming_config = StreamingConfig(
+            chunk_size_ms=500,
+            buffer_size=10,
+            progressive_playback=True,
+            auto_play=False  # Manual control for now
+        )
+        self.streaming_manager = None
+        
         self._initialize_engines()
     
     def _initialize_engines(self):
@@ -38,9 +62,9 @@ class TTSManager:
 
         # Priority order having fallback to other engines
         engine_classes = [
-            # XTTSv2TTSEngine,
+            XTTSv2TTSEngine,
             EdgeTTSEngine,
-            # PyTTSX3Engine
+            PyTTSX3Engine
         ]
         
         for engine_class in engine_classes:
@@ -96,42 +120,382 @@ class TTSManager:
         return False
     
     def get_active_engine_name(self) -> str:
-        """Get name of currently active engine"""
+        """Get the name of currently active TTS engine"""
         return self.active_engine.name if self.active_engine else "Brak"
     
+    def synthesize_batch_texts(self, texts: List[str], language: str = 'pl', max_workers: int = None) -> List[bool]:
+        """Synthesize multiple texts with automatic file path generation"""
+        import os
+        from datetime import datetime
+        
+        # Create tuples with auto-generated paths and default parameters
+        texts_and_paths = []
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        for i, text in enumerate(texts):
+            filename = f"test_audio_{timestamp}_{i+1:03d}.mp3"
+            output_path = os.path.join("temp_audio", filename)
+            # Ensure temp directory exists
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            texts_and_paths.append((text, output_path, 150, 'default'))
+        
+        return self.synthesize_batch(texts_and_paths, language, max_workers)
+    
     def synthesize_batch(self, texts_and_paths: List[tuple], language: str = 'pl', max_workers: int = None) -> List[bool]:
-        """Synthesize multiple texts in parallel for faster processing"""
+        """Synthesize multiple texts in parallel with optimization"""
         if not self.engines or not self.active_engine:
             return [False] * len(texts_and_paths)
         
-        # Adjust max_workers based on active engine
+        # Get max workers from configuration
         if max_workers is None:
-            if self.active_engine.name == "XTTS-v2":
-                max_workers = 1  # XTTS-v2 is not thread-safe, use sequential processing
-            else:
-                max_workers = 3  # Other engines can handle more parallel processing
+            max_workers = self.config_manager.get_engine_max_workers(self.active_engine.name)
+        
+        # Preprocess texts if smart preprocessing is enabled
+        processed_items = []
+        if self.config_manager.is_feature_enabled("smart_text_preprocessing"):
+            for text, output_path, rate, role in texts_and_paths:
+                optimized_text = self.text_chunker.optimize_text_for_tts(text)
+                processed_items.append((optimized_text, output_path, rate, role))
+        else:
+            processed_items = texts_and_paths
+        
+        # Check for engine-specific batch optimization
+        if (hasattr(self.active_engine, 'synthesize_batch_optimized') and
+            hasattr(self.active_engine, 'supports_batch_optimization') and
+            self.active_engine.supports_batch_optimization()):
+            console.print_info(f"🚀 Używam zoptymalizowanej syntezy batch dla {self.active_engine.name}")
+            
+            try:
+                results = self.active_engine.synthesize_batch_optimized(processed_items, language)
+                
+                # Log performance metrics for optimized batch
+                if self.config.enable_performance_monitoring and start_time:
+                    duration = time.time() - start_time
+                    success_count = sum(results) if isinstance(results, list) else 0
+                    console.print_info(f"📊 Optimized batch: {success_count}/{len(results)} success, {duration:.2f}s")
+                    
+                    # Get engine-specific stats if available
+                    if hasattr(self.active_engine, 'get_performance_stats'):
+                        stats = self.active_engine.get_performance_stats()
+                        if stats:
+                            console.print_info(f"🔧 Engine stats: {stats}")
+                
+                return results
+            except Exception as e:
+                console.print_warning(f"Optimized batch failed, falling back to standard: {e}")
         
         def synthesize_single(item):
             text, output_path, rate, role = item
-            return self.synthesize(text, output_path, language, rate, role)
+            
+            # Use chunked synthesis for long texts if enabled
+            if (self.config_manager.is_feature_enabled("parallel_chunking") and 
+                len(text) > self.config.chunk_size):
+                return self._synthesize_with_chunking(text, output_path, language, rate, role)
+            else:
+                return self.synthesize(text, output_path, language, rate, role)
+        
+        # Performance monitoring
+        start_time = None
+        if self.config.enable_performance_monitoring:
+            import time
+            start_time = time.time()
         
         # Use ThreadPoolExecutor for parallel processing
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
-            future_to_index = {executor.submit(synthesize_single, item): i for i, item in enumerate(texts_and_paths)}
-            results = [False] * len(texts_and_paths)
+            future_to_index = {executor.submit(synthesize_single, item): i for i, item in enumerate(processed_items)}
+            results = [False] * len(processed_items)
             
             # Collect results in order
             for future in as_completed(future_to_index):
                 index = future_to_index[future]
                 try:
-                    result = future.result(timeout=60)  # Increased timeout to 60 seconds
+                    result = future.result(timeout=self.config.synthesis_timeout_seconds)
                     results[index] = result
                 except Exception as e:
                     console.print_warning(f"Błąd podczas syntezy wiadomości {index+1}: {e}")
                     results[index] = False
             
+            # Log performance metrics
+            if self.config.enable_performance_monitoring and start_time:
+                duration = time.time() - start_time
+                success_count = sum(results)
+                console.print_info(f"📊 Batch synthesis: {success_count}/{len(results)} success, {duration:.2f}s total")
+            
             return results
+    
+    def _synthesize_with_chunking(self, text: str, output_path: str, language: str, rate: int, role: str) -> bool:
+        """Synthesize long text using chunking for better performance"""
+        try:
+            chunks = self.text_chunker.chunk_text(text, preserve_sentences=True)
+            
+            if len(chunks) <= 1:
+                # Text is short enough, use regular synthesis
+                return self.synthesize(text, output_path, language, rate, role)
+            
+            if not HAVE_PYDUB:
+                console.print_warning("Pydub not available for chunked synthesis, falling back to regular synthesis")
+                return self.synthesize(text, output_path, language, rate, role)
+            
+            # Synthesize chunks and combine
+            combined_audio = AudioSegment.empty()
+            temp_files = []
+            
+            try:
+                for i, chunk in enumerate(chunks):
+                    temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                    temp_path = temp_file.name
+                    temp_file.close()
+                    temp_files.append(temp_path)
+                    
+                    success = self.synthesize(chunk.text, temp_path, language, rate, role)
+                    if success and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+                        chunk_audio = AudioSegment.from_wav(temp_path)
+                        combined_audio += chunk_audio
+                        
+                        # Add small pause between chunks
+                        if i < len(chunks) - 1:
+                            combined_audio += AudioSegment.silent(duration=200)
+                    else:
+                        console.print_warning(f"Failed to synthesize chunk {i+1}/{len(chunks)}")
+                
+                # Export combined audio
+                if len(combined_audio) > 0:
+                    combined_audio.export(output_path, format="wav")
+                    return True
+                else:
+                    return False
+                    
+            finally:
+                # Cleanup temp files
+                if self.config.cleanup_temp_files:
+                    for temp_path in temp_files:
+                        if os.path.exists(temp_path):
+                            try:
+                                os.unlink(temp_path)
+                            except:
+                                pass
+            
+        except Exception as e:
+            console.print_error(f"Błąd podczas syntezy z chunkowaniem: {e}")
+            # Fallback to regular synthesis
+            return self.synthesize(text, output_path, language, rate, role)
+    
+    def initialize_streaming(self) -> bool:
+        """
+        Initialize streaming capabilities for the current TTS engine.
+        
+        Returns:
+            bool: True if streaming was successfully initialized
+        """
+        if not self.active_engine:
+            console.print_error("❌ No active TTS engine for streaming")
+            return False
+        
+        try:
+            # Check if current engine supports streaming
+            if hasattr(self.active_engine, 'supports_streaming') and self.active_engine.supports_streaming():
+                # Use existing streaming engine
+                streaming_engine = self.active_engine
+            else:
+                # For EdgeTTS, extend the existing engine with streaming capabilities
+                if self.active_engine.name == "Microsoft Edge TTS":
+                    # Extend current EdgeTTS engine with streaming methods
+                    from .streaming_infrastructure import StreamingTTSEngine
+                    
+                    # Create a streaming adapter that uses the existing engine
+                    class EdgeTTSStreamingAdapter(StreamingTTSEngine):
+                        def __init__(self, base_engine):
+                            self.base_engine = base_engine
+                        
+                        def supports_streaming(self) -> bool:
+                            return self.base_engine.is_available
+                        
+                        def get_optimal_chunk_size(self) -> int:
+                            return 500  # 500ms chunks
+                        
+                        async def synthesize_streaming(self, text: str, **kwargs):
+                            # Simple streaming by chunking text and using base engine
+                            from .text_processor import TextChunker
+                            from .streaming_infrastructure import AudioChunk
+                            import tempfile
+                            import os
+                            import time
+                            
+                            chunker = TextChunker()
+                            text_chunks = chunker.chunk_for_streaming(text, target_duration_ms=500)
+                            
+                            for chunk_id, text_chunk in enumerate(text_chunks):
+                                try:
+                                    # Generate audio for this chunk using base engine
+                                    temp_output = f'/tmp/stream_chunk_{chunk_id}_{int(time.time())}.wav'
+                                    
+                                    # Use async synthesis to avoid event loop conflicts
+                                    import asyncio
+                                    import concurrent.futures
+                                    
+                                    # Run synthesis in thread pool to avoid asyncio conflicts
+                                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                                        future = executor.submit(
+                                            self.base_engine.synthesize,
+                                            text_chunk,
+                                            temp_output,
+                                            kwargs.get('language', 'pl'),
+                                            kwargs.get('rate', 150),
+                                            kwargs.get('role', 'default')
+                                        )
+                                        success = await asyncio.wrap_future(future)
+                                    
+                                    if success and os.path.exists(temp_output):
+                                        # Read audio data
+                                        with open(temp_output, 'rb') as f:
+                                            audio_data = f.read()
+                                        
+                                        # Estimate duration (rough calculation)
+                                        duration_ms = (len(audio_data) / 44100 / 2) * 1000
+                                        
+                                        # Create audio chunk
+                                        chunk = AudioChunk(
+                                            chunk_id=chunk_id,
+                                            audio_data=audio_data,
+                                            duration_ms=duration_ms,
+                                            text_segment=text_chunk,
+                                            chunk_size=len(audio_data)
+                                        )
+                                        
+                                        # Cleanup temp file
+                                        try:
+                                            os.unlink(temp_output)
+                                        except:
+                                            pass
+                                        
+                                        yield chunk
+                                    
+                                except Exception as e:
+                                    console.print_warning(f'⚠️ Failed to generate chunk {chunk_id}: {e}')
+                                    continue
+                    
+                    streaming_engine = EdgeTTSStreamingAdapter(self.active_engine)
+                else:
+                    console.print_warning(f"⚠️ Streaming not supported for {self.active_engine.name}")
+                    return False
+            
+            # Initialize streaming manager
+            self.streaming_manager = StreamingAudioManager(
+                tts_engine=streaming_engine,
+                config=self.streaming_config
+            )
+            
+            console.print_info("✅ Streaming capabilities initialized")
+            return True
+            
+        except Exception as e:
+            console.print_error(f"❌ Failed to initialize streaming: {e}")
+            return False
+    
+    def synthesize_streaming(
+        self, 
+        text: str, 
+        language: str = 'pl', 
+        rate: int = 150,
+        role: str = 'default',
+        enable_progressive_playback: bool = False
+    ) -> bool:
+        """
+        Synthesize text using streaming TTS with progressive chunk delivery.
+        
+        Args:
+            text: Text to synthesize
+            language: Target language
+            rate: Speech rate in WPM
+            role: Voice role
+            enable_progressive_playback: Whether to enable real-time playback
+        
+        Returns:
+            bool: True if streaming synthesis completed successfully
+        """
+        if not self.streaming_manager:
+            if not self.initialize_streaming():
+                console.print_error("❌ Could not initialize streaming for synthesis")
+                return False
+        
+        try:
+            console.print_info(f"🎵 Starting streaming synthesis: '{text[:50]}...'")
+            
+            import asyncio
+            
+            # Create async task for streaming synthesis
+            async def stream_synthesis():
+                chunk_count = 0
+                async for chunk in self.streaming_manager.start_streaming_synthesis(
+                    text=text,
+                    language=language,
+                    rate=rate,
+                    role=role
+                ):
+                    chunk_count += 1
+                    console.print_info(
+                        f"📦 Received chunk {chunk.chunk_id}: "
+                        f"{chunk.duration_ms:.1f}ms, {chunk.chunk_size} bytes"
+                    )
+                
+                console.print_info(f"✅ Streaming completed: {chunk_count} chunks")
+                return chunk_count > 0
+            
+            # Run streaming synthesis
+            result = asyncio.run(stream_synthesis())
+            
+            # Get streaming statistics
+            status = self.streaming_manager.get_streaming_status()
+            console.print_info(f"📊 Streaming stats: {status['buffer_status']['stats']}")
+            
+            return result
+            
+        except Exception as e:
+            console.print_error(f"❌ Streaming synthesis failed: {e}")
+            import traceback
+            console.print_error(f"🐛 Traceback: {traceback.format_exc()}")
+            return False
+    
+    def get_streaming_status(self) -> dict:
+        """
+        Get current streaming status and capabilities.
+        
+        Returns:
+            dict: Streaming status information
+        """
+        if not self.streaming_manager:
+            return {
+                'streaming_initialized': False,
+                'engine_supports_streaming': False,
+                'streaming_available': False
+            }
+        
+        status = self.streaming_manager.get_streaming_status()
+        status.update({
+            'streaming_initialized': True,
+            'streaming_available': True,
+            'active_engine': self.active_engine.name if self.active_engine else None
+        })
+        
+        return status
+    
+    def supports_streaming(self) -> bool:
+        """
+        Check if current configuration supports streaming synthesis.
+        
+        Returns:
+            bool: True if streaming is supported
+        """
+        if not self.active_engine:
+            return False
+        
+        # Check if engine has native streaming support
+        if hasattr(self.active_engine, 'supports_streaming'):
+            return self.active_engine.supports_streaming()
+        
+        # Check if we can create streaming wrapper
+        return self.active_engine.name == "Microsoft Edge TTS"
 
 
 # Initialize global TTS manager
@@ -272,17 +636,31 @@ def generate_audio_for_all(
             console.print_error("Brak wiadomości do przetworzenia.")
             return None
         
-        console.print_info(f"🚀 Przetwarzam {len(batch_data)} wiadomości równolegle...")
+        console.print_info(f"🚀 Przetwarzam {len(batch_data)} wiadomości z optymalizacją...")
         
-        # Process all messages in parallel
+        # Check if streaming synthesis is enabled and supported
+        config = get_tts_config()
+        if (config.enable_streaming and 
+            get_config_manager().is_feature_enabled("streaming_synthesis") and 
+            HAVE_PYDUB):
+            console.print_info("📡 Używam syntezy strumieniowej...")
+            # Streaming not yet implemented, fall back to batch processing
+            console.print_info("📡 Synteza strumieniowa w przygotowaniu, używam batch processing...")
+        
+        # Process all messages in parallel (traditional approach)
         results = tts_manager.synthesize_batch(batch_data, language=language)
         
         # Collect successful files
+        success_count = 0
         for i, (success, (_, temp_path, _, _)) in enumerate(zip(results, batch_data)):
             if success and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
                 temp_files.append(temp_path)
+                success_count += 1
             else:
                 console.print_warning(f"Nie udało się wygenerować audio dla wiadomości {i+1}")
+        
+        if success_count > 0:
+            console.print_info(f"✅ Pomyślnie przetworzono {success_count}/{len(batch_data)} wiadomości")
         
         if not temp_files:
             console.print_error("Nie udało się wygenerować żadnego segmentu audio.")
