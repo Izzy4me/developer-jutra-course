@@ -120,7 +120,7 @@ This creates an audible difference between the two speakers.
 
 ### Possible audio quality issues
 - `pyttsx3` is a basic offline TTS engine
-- For better quality, use Coqui TTS, Microsoft Edge TTS or suno-bark
+- For better quality, use XTTSv2 TTS, Microsoft Edge TTS or suno-bark
 
 ## Implementation Details
 
