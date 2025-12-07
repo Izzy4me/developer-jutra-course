@@ -1,0 +1,211 @@
+{
+  "overall_success": true,
+  "phase_results": {
+    "phase1": true,
+    "phase2": true,
+    "phase3": true,
+    "phase4": true,
+    "pipeline": true
+  },
+  "statistics": {
+    "total_tests": 22,
+    "successful_tests": 17,
+    "success_rate": 77.27272727272727,
+    "total_duration": 0.09935402870178223,
+    "errors": 0
+  },
+  "performance_metrics": {
+    "Phase 1 total time": {
+      "value": 0.09732198715209961,
+      "unit": "s",
+      "timestamp": 1765050563.642006
+    },
+    "Basic synthesis time": {
+      "value": 0.00028204917907714844,
+      "unit": "s",
+      "timestamp": 1765050563.6428611
+    },
+    "Phase 2 total time": {
+      "value": 0.0008440017700195312,
+      "unit": "s",
+      "timestamp": 1765050563.642866
+    },
+    "Phase 3 total time": {
+      "value": 0.0003161430358886719,
+      "unit": "s",
+      "timestamp": 1765050563.6431942
+    },
+    "Phase 4 total time": {
+      "value": 0.0006840229034423828,
+      "unit": "s",
+      "timestamp": 1765050563.643892
+    },
+    "Traditional synthesis time": {
+      "value": 3.3855438232421875e-05,
+      "unit": "s",
+      "timestamp": 1765050563.6440241
+    },
+    "Full pipeline total time": {
+      "value": 0.00012183189392089844,
+      "unit": "s",
+      "timestamp": 1765050563.644029
+    }
+  },
+  "detailed_results": [
+    {
+      "test_name": "Text chunking basic functionality",
+      "success": false,
+      "duration": 0,
+      "details": "Generated 1 chunks",
+      "timestamp": 1765050563.6418781
+    },
+    {
+      "test_name": "Streaming-aware text chunking",
+      "success": true,
+      "duration": 0,
+      "details": "Generated 1 streaming chunks",
+      "timestamp": 1765050563.641907
+    },
+    {
+      "test_name": "Configuration system",
+      "success": true,
+      "duration": 0,
+      "details": "Config-based chunking: 1 chunks",
+      "timestamp": 1765050563.6419158
+    },
+    {
+      "test_name": "Text optimization for streaming",
+      "success": true,
+      "duration": 0,
+      "details": "Optimized text length: 116 chars",
+      "timestamp": 1765050563.641998
+    },
+    {
+      "test_name": "TTS manager initialization",
+      "success": true,
+      "duration": 0,
+      "details": "Active engine: Microsoft Edge TTS",
+      "timestamp": 1765050563.642564
+    },
+    {
+      "test_name": "Basic synthesis",
+      "success": false,
+      "duration": 0,
+      "details": "Output: /var/folders/56/k28g5qgx40j1ffbvm7bq774r0000gp/T/tts_integration_test_bsmmvjj4/phase2_test.wav",
+      "timestamp": 1765050563.642852
+    },
+    {
+      "test_name": "Streaming infrastructure imports",
+      "success": true,
+      "duration": 0,
+      "details": "All streaming classes imported successfully",
+      "timestamp": 1765050563.642879
+    },
+    {
+      "test_name": "Streaming configuration",
+      "success": true,
+      "duration": 0,
+      "details": "Chunk size: 500ms",
+      "timestamp": 1765050563.642886
+    },
+    {
+      "test_name": "Audio stream buffer",
+      "success": true,
+      "duration": 0,
+      "details": "Buffer size: 5",
+      "timestamp": 1765050563.642915
+    },
+    {
+      "test_name": "Streaming initialization",
+      "success": true,
+      "duration": 0,
+      "details": "Streaming manager initialized",
+      "timestamp": 1765050563.642963
+    },
+    {
+      "test_name": "Streaming synthesis",
+      "success": false,
+      "duration": 0,
+      "details": "Streaming error: 'async for' requires an object with __aiter__ method, got coroutine",
+      "timestamp": 1765050563.6431859
+    },
+    {
+      "test_name": "Progressive playback imports",
+      "success": true,
+      "duration": 0,
+      "details": "All playback classes imported successfully",
+      "timestamp": 1765050563.64382
+    },
+    {
+      "test_name": "Audio engines availability",
+      "success": true,
+      "duration": 0,
+      "details": "Pygame: False, PyAudio: False",
+      "timestamp": 1765050563.643828
+    },
+    {
+      "test_name": "Playback configuration",
+      "success": true,
+      "duration": 0,
+      "details": "Sample rate: 44100Hz",
+      "timestamp": 1765050563.6438332
+    },
+    {
+      "test_name": "Progressive player creation",
+      "success": true,
+      "duration": 0,
+      "details": "Engine: None",
+      "timestamp": 1765050563.643857
+    },
+    {
+      "test_name": "Player statistics",
+      "success": true,
+      "duration": 0,
+      "details": "Stats keys: ['chunks_played', 'total_playback_time', 'buffer_underruns', 'playback_errors', 'average_chunk_duration', 'state', 'queue_size', 'engine_type', 'volume', 'sample_rate', 'channels']",
+      "timestamp": 1765050563.643868
+    },
+    {
+      "test_name": "Player state management",
+      "success": true,
+      "duration": 0,
+      "details": "Initial playing state: False",
+      "timestamp": 1765050563.643872
+    },
+    {
+      "test_name": "TTS manager playback integration",
+      "success": true,
+      "duration": 0,
+      "details": "Playback enabled: False",
+      "timestamp": 1765050563.643884
+    },
+    {
+      "test_name": "Playback status retrieval",
+      "success": true,
+      "duration": 0,
+      "details": "Available: False",
+      "timestamp": 1765050563.643889
+    },
+    {
+      "test_name": "Pipeline initialization",
+      "success": true,
+      "duration": 0,
+      "details": "Streaming: True, Playback: False",
+      "timestamp": 1765050563.6439528
+    },
+    {
+      "test_name": "Full pipeline synthesis",
+      "success": false,
+      "duration": 0,
+      "details": "Pipeline error: 'async for' requires an object with __aiter__ method, got coroutine",
+      "timestamp": 1765050563.643973
+    },
+    {
+      "test_name": "Traditional synthesis comparison",
+      "success": false,
+      "duration": 0,
+      "details": "Traditional time: 0.00s",
+      "timestamp": 1765050563.644018
+    }
+  ],
+  "errors": []
+}

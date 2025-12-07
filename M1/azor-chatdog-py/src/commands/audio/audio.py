@@ -61,10 +61,11 @@ class TTSManager:
         """Initialize all available TTS engines in priority order"""
 
         # Priority order having fallback to other engines
+        # ! IMPORTANT!
         engine_classes = [
-            XTTSv2TTSEngine,
-            EdgeTTSEngine,
-            PyTTSX3Engine
+            XTTSv2TTSEngine, # SLOW, GOOD but 100% offline
+            EdgeTTSEngine, # FAST, GOOD but needs Internet
+            PyTTSX3Engine, # please don't
         ]
         
         for engine_class in engine_classes:
@@ -376,6 +377,10 @@ class TTSManager:
                                     continue
                     
                     streaming_engine = EdgeTTSStreamingAdapter(self.active_engine)
+                elif self.active_engine.name == "XTTS-v2":
+                    # Create XTTS streaming adapter
+                    from .xtts_streaming_adapter import create_xtts_streaming_adapter
+                    streaming_engine = create_xtts_streaming_adapter(self.active_engine)
                 else:
                     console.print_warning(f"⚠️ Streaming not supported for {self.active_engine.name}")
                     return False
@@ -393,14 +398,14 @@ class TTSManager:
             console.print_error(f"❌ Failed to initialize streaming: {e}")
             return False
     
-    def synthesize_streaming(
+    async def synthesize_streaming(
         self, 
         text: str, 
         language: str = 'pl', 
         rate: int = 150,
         role: str = 'default',
         enable_progressive_playback: bool = False
-    ) -> bool:
+    ):
         """
         Synthesize text using streaming TTS with progressive chunk delivery.
         
@@ -411,51 +416,37 @@ class TTSManager:
             role: Voice role
             enable_progressive_playback: Whether to enable real-time playback
         
-        Returns:
-            bool: True if streaming synthesis completed successfully
+        Yields:
+            AudioChunk: Progressive audio chunks as they're generated
         """
         if not self.streaming_manager:
             if not self.initialize_streaming():
                 console.print_error("❌ Could not initialize streaming for synthesis")
-                return False
+                return
         
         try:
             console.print_info(f"🎵 Starting streaming synthesis: '{text[:50]}...'")
             
-            import asyncio
+            # Delegate to streaming manager and yield chunks
+            async for chunk in self.streaming_manager.start_streaming_synthesis(
+                text=text,
+                language=language,
+                rate=rate,
+                role=role
+            ):
+                console.print_info(
+                    f"📦 Yielding chunk {chunk.chunk_id}: "
+                    f"{chunk.duration_ms:.1f}ms, {chunk.chunk_size} bytes"
+                )
+                yield chunk
             
-            # Create async task for streaming synthesis
-            async def stream_synthesis():
-                chunk_count = 0
-                async for chunk in self.streaming_manager.start_streaming_synthesis(
-                    text=text,
-                    language=language,
-                    rate=rate,
-                    role=role
-                ):
-                    chunk_count += 1
-                    console.print_info(
-                        f"📦 Received chunk {chunk.chunk_id}: "
-                        f"{chunk.duration_ms:.1f}ms, {chunk.chunk_size} bytes"
-                    )
-                
-                console.print_info(f"✅ Streaming completed: {chunk_count} chunks")
-                return chunk_count > 0
-            
-            # Run streaming synthesis
-            result = asyncio.run(stream_synthesis())
-            
-            # Get streaming statistics
-            status = self.streaming_manager.get_streaming_status()
-            console.print_info(f"📊 Streaming stats: {status['buffer_status']['stats']}")
-            
-            return result
+            console.print_info("✅ Streaming synthesis completed")
             
         except Exception as e:
             console.print_error(f"❌ Streaming synthesis failed: {e}")
             import traceback
             console.print_error(f"🐛 Traceback: {traceback.format_exc()}")
-            return False
+            return
     
     def get_streaming_status(self) -> dict:
         """
@@ -495,7 +486,87 @@ class TTSManager:
             return self.active_engine.supports_streaming()
         
         # Check if we can create streaming wrapper
-        return self.active_engine.name == "Microsoft Edge TTS"
+        return self.active_engine.name in ["Microsoft Edge TTS", "XTTS-v2"]
+    
+    # =================== Progressive Playback Integration (Phase 4) ===================
+    
+    def enable_progressive_playback(self, playback_config=None) -> bool:
+        """
+        Enable progressive playback for streaming TTS.
+        
+        Args:
+            playback_config: Optional PlaybackConfig for audio settings
+            
+        Returns:
+            bool: True if progressive playback enabled successfully
+        """
+        if not self.streaming_manager:
+            if not self.initialize_streaming():
+                console.print_error("❌ Cannot enable progressive playback - streaming not available")
+                return False
+        
+        return self.streaming_manager.enable_progressive_playback(playback_config)
+    
+    async def synthesize_with_playback(
+        self,
+        text: str,
+        language: str = 'pl',
+        rate: int = 150,
+        role: str = 'assistant',
+        playback_config=None
+    ) -> bool:
+        """
+        Synthesize speech with real-time progressive playback.
+        
+        Args:
+            text: Text to synthesize
+            language: Target language
+            rate: Speech rate (WPM)
+            role: Voice role/character
+            playback_config: Optional PlaybackConfig for audio settings
+            
+        Returns:
+            bool: True if synthesis with playback completed successfully
+        """
+        if not self.streaming_manager:
+            if not self.initialize_streaming():
+                console.print_error("❌ Cannot synthesize with playback - streaming not available")
+                return False
+        
+        return await self.streaming_manager.start_streaming_with_playback(
+            text=text,
+            language=language,
+            rate=rate,
+            role=role,
+            playback_config=playback_config
+        )
+    
+    def stop_progressive_playback(self):
+        """Stop progressive playback"""
+        if self.streaming_manager:
+            self.streaming_manager.stop_progressive_playback()
+    
+    def pause_progressive_playback(self):
+        """Pause progressive playback"""
+        if self.streaming_manager:
+            self.streaming_manager.pause_progressive_playback()
+    
+    def resume_progressive_playback(self):
+        """Resume progressive playback"""
+        if self.streaming_manager:
+            self.streaming_manager.resume_progressive_playback()
+    
+    def set_playback_volume(self, volume: float):
+        """Set progressive playback volume (0.0 to 1.0)"""
+        if self.streaming_manager:
+            self.streaming_manager.set_playback_volume(volume)
+    
+    def get_progressive_playback_status(self) -> dict:
+        """Get progressive playback status and statistics"""
+        if not self.streaming_manager:
+            return {'available': False, 'message': 'Streaming not initialized'}
+        
+        return self.streaming_manager.get_progressive_playback_status()
 
 
 # Initialize global TTS manager

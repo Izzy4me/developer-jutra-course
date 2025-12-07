@@ -17,6 +17,41 @@ class TextChunk:
     chunk_id: int
 
 
+@dataclass
+class ChunkingConfig:
+    """Configuration for text chunking"""
+    max_length: int = 500
+    overlap: int = 50
+    preserve_sentences: bool = True
+    min_chunk_size: int = 50
+
+
+class TextProcessor:
+    """Enhanced text processor for streaming TTS optimization"""
+    
+    def __init__(self):
+        self.chunker = TextChunker()
+    
+    def optimize_for_streaming_tts(self, text: str) -> str:
+        """Optimize text for streaming TTS processing"""
+        # Basic text cleaning and optimization
+        optimized = re.sub(r'\s+', ' ', text)  # Normalize whitespace
+        optimized = optimized.strip()
+        
+        # Remove excessive punctuation
+        optimized = re.sub(r'[.]{2,}', '...', optimized)
+        optimized = re.sub(r'[!]{2,}', '!', optimized)
+        optimized = re.sub(r'[?]{2,}', '?', optimized)
+        
+        return optimized
+    
+    def stream_text_progressively(self, text: str, chunk_size_ms: int = 500):
+        """Stream text chunks progressively for real-time processing"""
+        chunks = self.chunker.chunk_for_streaming(text, target_duration_ms=chunk_size_ms)
+        for chunk in chunks:
+            yield chunk
+
+
 class TextChunker:
     """Handles intelligent text chunking for optimal TTS processing"""
     

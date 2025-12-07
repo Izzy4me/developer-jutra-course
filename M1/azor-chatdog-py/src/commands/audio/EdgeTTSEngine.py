@@ -33,12 +33,14 @@ class EdgeTTSEngine(TTSEngine):
                 voices = await edge_tts.list_voices()
                 return voices
             
-            # Run async function to get voices
+            # Check voices with proper async handling
             try:
-                voices = asyncio.run(test_voices())
-            except RuntimeError:
-                # If event loop is already running, just check if module loads
+                loop = asyncio.get_running_loop()
+                # Event loop already running - just validate module import
                 voices = True
+            except RuntimeError:
+                # No event loop - safe to use asyncio.run()
+                voices = asyncio.run(test_voices())
             
             if voices:
                 self.edge_tts = edge_tts
@@ -95,9 +97,21 @@ class EdgeTTSEngine(TTSEngine):
             temp_mp3_path = output_path + '.temp.mp3'
             communicate = self.edge_tts.Communicate(text, voice, rate=rate_str)
 
-            # Use the built-in save method
+            # Use the built-in save method with proper async handling
             import asyncio
-            asyncio.run(communicate.save(temp_mp3_path))
+            try:
+                loop = asyncio.get_running_loop()
+                # Event loop running - use thread pool
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(
+                        asyncio.run,
+                        communicate.save(temp_mp3_path)
+                    )
+                    future.result(timeout=30)
+            except RuntimeError:
+                # No event loop - safe to use asyncio.run()
+                asyncio.run(communicate.save(temp_mp3_path))
 
             # Verify MP3 was created
             if not os.path.exists(temp_mp3_path) or os.path.getsize(temp_mp3_path) == 0:
@@ -177,8 +191,20 @@ class EdgeTTSEngine(TTSEngine):
                 )
                 requests.append(request)
             
-            # Run async batch processing
-            results = asyncio.run(self._async_processor.batch_synthesize(requests))
+            # Process requests through async processor with proper async handling
+            try:
+                loop = asyncio.get_running_loop()
+                # Event loop running - use thread pool
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(
+                        asyncio.run,
+                        self._async_processor.batch_synthesize(requests)
+                    )
+                    results = future.result(timeout=60)
+            except RuntimeError:
+                # No event loop - safe to use asyncio.run()
+                results = asyncio.run(self._async_processor.batch_synthesize(requests))
             
             # Convert results to boolean list
             return [result.success for result in results]

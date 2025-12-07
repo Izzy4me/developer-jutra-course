@@ -1,25 +1,39 @@
 """
 Streaming Infrastructure for Real-time TTS Audio Processing
 Phase 3: Streaming Infrastructure Implementation
+Phase 4: Progressive Playback Integration
 
 Provides progressive audio generation and playback capabilities with:
 - Real-time audio chunk streaming
 - Progressive text processing and synthesis
 - Audio buffer management and synchronization
 - Stream-aware audio playback coordination
+- Integrated progressive audio player
 """
 
 import asyncio
 import time
 import queue
 import threading
-from abc import ABC, abstractmethod
+import uuid
+from typing import Optional, List, AsyncGenerator, Callable, Dict, Any
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, AsyncGenerator, Callable, Union
 from enum import Enum
-import io
+from abc import ABC, abstractmethod
 
 from cli import console
+
+# Progressive playback integration (Phase 4)  
+try:
+    from .progressive_playback import (
+        ProgressiveAudioPlayer, 
+        PlaybackConfig, 
+        create_progressive_player
+    )
+    PROGRESSIVE_PLAYBACK_AVAILABLE = True
+except ImportError:
+    PROGRESSIVE_PLAYBACK_AVAILABLE = False
+    console.print_warning("⚠️ Progressive playback not available - install audio dependencies")
 
 
 class StreamState(Enum):
@@ -278,6 +292,10 @@ class StreamingAudioManager:
         self._playback_task = None
         self._is_streaming = False
         
+        # Progressive playback integration (Phase 4)
+        self._progressive_player = None
+        self._playback_enabled = config.progressive_playback if config else True
+        
     async def start_streaming_synthesis(
         self, 
         text: str, 
@@ -431,7 +449,145 @@ class StreamingAudioManager:
         if self._playback_task and not self._playback_task.done():
             self._playback_task.cancel()
         self._playback_task = None
+        
+        # Reset progressive player
+        if self._progressive_player:
+            self._progressive_player.stop_playback()
+            self._progressive_player = None
+        
         console.print_info("🔄 Streaming manager reset")
+    
+    # =================== Progressive Playback Integration (Phase 4) ===================
+    
+    def enable_progressive_playback(self, playback_config=None) -> bool:
+        """
+        Enable progressive playback with integrated audio player.
+        
+        Args:
+            playback_config: Optional playback configuration
+            
+        Returns:
+            bool: True if progressive playback enabled successfully
+        """
+        if not PROGRESSIVE_PLAYBACK_AVAILABLE:
+            console.print_error("❌ Progressive playback not available - missing audio dependencies")
+            return False
+        
+        try:
+            self._progressive_player = create_progressive_player(playback_config)
+            
+            if self._progressive_player.playback_engine:
+                self._playback_enabled = True
+                console.print_info("✅ Progressive playback enabled")
+                return True
+            else:
+                console.print_error("❌ Failed to initialize playback engine")
+                return False
+                
+        except Exception as e:
+            console.print_error(f"❌ Progressive playback initialization failed: {e}")
+            return False
+    
+    async def start_streaming_with_playback(
+        self, 
+        text: str, 
+        language: str = 'pl',
+        rate: int = 150,
+        role: str = 'default',
+        playback_config=None
+    ) -> bool:
+        """
+        Start streaming synthesis with integrated progressive playback.
+        
+        Args:
+            text: Input text to synthesize
+            language: Target language
+            rate: Speech rate (WPM) 
+            role: Voice role/character
+            playback_config: Optional playback configuration
+            
+        Returns:
+            bool: True if streaming with playback started successfully
+        """
+        if not self._playback_enabled:
+            if not self.enable_progressive_playback(playback_config):
+                console.print_error("❌ Cannot start streaming with playback - playback not available")
+                return False
+        
+        # Start progressive player
+        self._progressive_player.start_progressive_playback()
+        
+        # Start streaming synthesis with playback integration
+        console.print_info(f"🎵 Starting streaming synthesis with playback for: '{text[:50]}...'")
+        
+        try:
+            async for chunk in self.start_streaming_synthesis(
+                text=text,
+                language=language, 
+                rate=rate,
+                role=role,
+                progress_callback=self._on_chunk_generated
+            ):
+                # Queue chunk for progressive playback
+                if self._progressive_player and self._playback_enabled:
+                    success = self._progressive_player.queue_chunk(chunk)
+                    if not success:
+                        console.print_warning(f"⚠️ Failed to queue chunk {chunk.chunk_id} for playback")
+                
+                # Small delay to prevent overwhelming the playback queue
+                await asyncio.sleep(0.05)
+            
+            console.print_info("✅ Streaming synthesis with playback completed")
+            return True
+            
+        except Exception as e:
+            console.print_error(f"❌ Streaming with playback failed: {e}")
+            return False
+    
+    def _on_chunk_generated(self, chunk: AudioChunk):
+        """Callback for when a new audio chunk is generated during streaming"""
+        console.print_info(f"📦 Generated chunk {chunk.chunk_id}: {chunk.duration_ms:.1f}ms")
+        
+        # Additional chunk processing or validation could be added here
+        if chunk.audio_data:
+            console.print_info(f"   └── Audio size: {len(chunk.audio_data)} bytes")
+    
+    def stop_progressive_playback(self):
+        """Stop progressive playback and cleanup resources"""
+        if self._progressive_player:
+            self._progressive_player.stop_playback()
+            console.print_info("⏹️ Progressive playback stopped")
+    
+    def pause_progressive_playback(self):
+        """Pause progressive playback"""
+        if self._progressive_player and self._progressive_player.is_playing():
+            self._progressive_player.pause_playback()
+            console.print_info("⏸️ Progressive playback paused")
+    
+    def resume_progressive_playback(self):
+        """Resume progressive playback"""
+        if self._progressive_player:
+            self._progressive_player.resume_playback()
+            console.print_info("▶️ Progressive playback resumed")
+    
+    def set_playback_volume(self, volume: float):
+        """Set progressive playback volume (0.0 to 1.0)"""
+        if self._progressive_player:
+            self._progressive_player.set_volume(volume)
+            console.print_info(f"🔊 Playback volume set to {volume:.1%}")
+    
+    def get_progressive_playback_status(self) -> dict:
+        """Get progressive playback status and statistics"""
+        if not self._progressive_player:
+            return {'available': False, 'message': 'Progressive playback not initialized'}
+        
+        stats = self._progressive_player.get_playback_stats()
+        return {
+            'available': True,
+            'enabled': self._playback_enabled,
+            'is_playing': self._progressive_player.is_playing(),
+            'statistics': stats
+        }
 
 
 # Export main classes for external use
