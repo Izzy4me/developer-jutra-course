@@ -30,10 +30,14 @@ class PyTTSX3Engine(TTSEngine):
             self.is_available = False
             return False
     
-    def synthesize(self, text: str, output_path: str, language: str = 'pl', rate: int = 150, role: str = 'assistant') -> bool:
+    def synthesize(self, text: str, output_path: str, language: str = 'pl', rate: int = 150, role: str = 'assistant', voice_sample: str = None) -> bool:
         """Generate speech using pyttsx3"""
         if not self.is_available:
             return False
+        
+        # Warn if custom voice is requested (not supported)
+        if voice_sample:
+            console.print_warning("⚠️  Using custom voices are not supported with this engine")
         
         try:
             import pyttsx3

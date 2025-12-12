@@ -48,10 +48,14 @@ class EdgeTTSEngine(TTSEngine):
             self.is_available = False
             return False
 
-    def synthesize(self, text: str, output_path: str, language: str = 'pl', rate: int = 150, role: str = 'assistant') -> bool:
+    def synthesize(self, text: str, output_path: str, language: str = 'pl', rate: int = 150, role: str = 'assistant', voice_sample: str = None) -> bool:
         """Generate speech using Microsoft Edge TTS"""
         if not self.is_available or not self.edge_tts:
             return False
+        
+        # Warn if custom voice is requested (not supported)
+        if voice_sample:
+            console.print_warning("⚠️  Using custom voices are not supported with this engine")
 
         try:
             # Select voice based on language and role

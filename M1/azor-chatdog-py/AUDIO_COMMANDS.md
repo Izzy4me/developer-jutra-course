@@ -5,6 +5,27 @@ Added two new audio commands to generate speech from chat sessions:
 - `/audio last` - Generate audio from the assistant's last response
 - `/audio all` - Generate audio from the entire conversation
 
+### TTS Modes
+
+The audio commands support three different TTS modes via the `--mode` parameter:
+
+- **`balanced`** (default) - Uses EdgeTTS engine
+  - ✅ Fast generation
+  - ✅ Good quality
+  - ❌ Requires Internet connection
+  
+- **`custom-quality`** - Uses XTTS-v2 engine
+  - ✅ Can work offline
+  - ✅ Good quality
+  - ✅ Supports custom voice samples (single sample)
+  - ⚠️ Much slower on CPU
+  
+- **`poor`** - Uses pyttsx3 engine
+  - ✅ Can work offline
+  - ✅ Fast generation
+  - ⚠️ Bad quality with Polish language
+  - ⚠️ Robotic voice with English
+
 ### Additional System Dependencies (except Python dependencies in requirements.tsx file)
 
 **macOS**: Audio playback should work out of the box using `afplay`.
@@ -28,6 +49,28 @@ sudo apt-get install alsa-utils
 /audio last
 ```
 
+### Generate audio with specific mode
+```bash
+/audio last --mode=balanced         # Fast, online (default)
+/audio last --mode=custom-quality   # Offline, slower, better voices
+/audio last --mode=poor             # Offline, fast, robotic
+```
+
+### Generate audio with custom voice sample (custom-quality mode only)
+```bash
+/audio last --mode=custom-quality --voice-sample=/path/to/voice.wav
+/audio all --mode=custom-quality --voice-sample=~/my-voice.wav
+```
+
+**Important:** Custom voice samples are used **only for user messages**. Assistant voices will use their specific default voices (or custom assistant-specific voices in the future).
+
+**Voice sample requirements:**
+- Must be a WAV file
+- Should be 6-10 seconds of clear speech
+- Works best with single speaker, no background noise
+- Recommended: 22050 Hz or 24000 Hz sample rate
+- Only supported with `custom-quality` mode (XTTS-v2 engine)
+
 ### Generate audio without auto-play
 ```bash
 /audio last --no-play
@@ -41,6 +84,11 @@ sudo apt-get install alsa-utils
 ### Customize pause between messages (in milliseconds)
 ```bash
 /audio all --pause 1000
+```
+
+### Generate full conversation with specific mode
+```bash
+/audio all --mode=custom-quality --pause 300
 ```
 
 ### Generate full conversation without playing
@@ -98,6 +146,8 @@ This creates an audible difference between the two speakers.
    /audio last --no-play
    ```
    - Should only generate file without playing
+
+Note: `--pause` applies only to `/audio all`. Passing `--pause` to `/audio last` will be ignored with a warning.
 
 7. **Verify files exist**:
    ```bash

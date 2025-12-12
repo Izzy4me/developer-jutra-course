@@ -27,21 +27,38 @@ from .pydub_utils import HAVE_PYDUB, AudioSegment, pydub_play
 class TTSManager:
     """Manages multiple TTS engines with automatic fallback"""
     
-    def __init__(self):
+    def __init__(self, mode: str = 'balanced', voice_sample: Optional[str] = None):
         self.engines: List[TTSEngine] = []
         self.active_engine: Optional[TTSEngine] = None
         self._engine_cache = {}  # Cache engines by class name
+        self.mode = mode
+        self.voice_sample = voice_sample
         self._initialize_engines()
     
     def _initialize_engines(self):
-        """Initialize all available TTS engines in priority order"""
+        """Initialize all available TTS engines in priority order based on mode"""
 
-        # Priority order having fallback to other engines
+        # Map modes to preferred engines
+        mode_engine_map = {
+            'balanced': EdgeTTSEngine,      # Fast, good quality, needs Internet
+            'custom-quality': XTTSv2TTSEngine,  # Offline, slower on CPU, custom voice support
+            'poor': PyTTSX3Engine           # Offline, fast, robotic voice
+        }
+        
+        # Get preferred engine for mode, default to EdgeTTS
+        preferred_engine = mode_engine_map.get(self.mode, EdgeTTSEngine)
+        
+        # Priority order: preferred engine first, then fallbacks
         engine_classes = [
-            # XTTSv2TTSEngine,
+            preferred_engine,
             EdgeTTSEngine,
-            # PyTTSX3Engine
+            XTTSv2TTSEngine,
+            PyTTSX3Engine
         ]
+        
+        # Performance trick - remove duplicates while preserving order
+        seen = set()
+        engine_classes = [e for e in engine_classes if not (e in seen or seen.add(e))]
         
         for engine_class in engine_classes:
             class_name = engine_class.__name__
@@ -81,7 +98,7 @@ class TTSManager:
         
         # Try active engine first
         if self.active_engine and self.active_engine.is_available:
-            if self.active_engine.synthesize(text, output_path, language, rate, role):
+            if self.active_engine.synthesize(text, output_path, language, rate, role, self.voice_sample):
                 return True
             else:
                 console.print_warning(f"Silnik {self.active_engine.name} zawiódł, próbuję zapasowy...")
@@ -90,7 +107,7 @@ class TTSManager:
         for engine in self.engines:
             if engine != self.active_engine and engine.is_available:
                 console.print_info(f"Próbuję zapasowy silnik: {engine.name}")
-                if engine.synthesize(text, output_path, language, rate, role):
+                if engine.synthesize(text, output_path, language, rate, role, self.voice_sample):
                     return True
         
         return False
@@ -135,14 +152,16 @@ class TTSManager:
 
 
 # Initialize global TTS manager
-_tts_manager: Optional[TTSManager] = None
+_tts_manager_cache: Dict[str, TTSManager] = {}
 
-def get_tts_manager() -> TTSManager:
-    """Get or create global TTS manager instance"""
-    global _tts_manager
-    if _tts_manager is None:
-        _tts_manager = TTSManager()
-    return _tts_manager
+def get_tts_manager(mode: str = 'balanced', voice_sample: Optional[str] = None) -> TTSManager:
+    """Get or create TTS manager instance for specific mode and voice sample"""
+    global _tts_manager_cache
+    # Create cache key combining mode and voice_sample
+    cache_key = f"{mode}:{voice_sample or 'default'}"
+    if cache_key not in _tts_manager_cache:
+        _tts_manager_cache[cache_key] = TTSManager(mode=mode, voice_sample=voice_sample)
+    return _tts_manager_cache[cache_key]
 
 
 def _get_message_text(message: Dict) -> str:
@@ -157,21 +176,22 @@ def _get_message_role(message: Dict) -> str:
     return message.get('role', 'unknown')
 
 # Command for command handler
-def generate_audio_for_last(session_id: str, history: List[Dict], pause_ms: int = 500, play: bool = True, language: str = 'pl') -> Optional[str]:
+def generate_audio_for_last(session_id: str, history: List[Dict], play: bool = True, language: str = 'pl', mode: str = 'balanced', voice_sample: Optional[str] = None) -> Optional[str]:
     """
     Generate audio file for the last assistant response.
     
     Args:
         session_id: Session identifier
         history: Conversation history
-        pause_ms: Pause duration (not used for single message, kept for API consistency)
         play: Whether to play the audio after generation
         language: Language code ('pl' for Polish, 'en' for English)
+        mode: TTS mode - 'balanced' (EdgeTTS), 'custom-quality' (XTTS-v2), or 'poor' (pyttsx3)
+        voice_sample: Path to custom voice sample WAV file (only for user role)
     
     Returns:
         str: Path to generated WAV file, or None if failed
     """
-    tts_manager = get_tts_manager()
+    tts_manager = get_tts_manager(mode, voice_sample)
     
     if not tts_manager.engines:
         console.print_error("Brak dostępnych silników TTS.")
@@ -219,7 +239,9 @@ def generate_audio_for_all(
     play: bool = True,
     user_rate: int = 120,
     assistant_rate: int = 130,
-    language: str = 'pl'
+    language: str = 'pl',
+    mode: str = 'balanced',
+    voice_sample: Optional[str] = None
 ) -> Optional[str]:
     """
     Generate audio file for entire conversation with different voices for user and assistant.
@@ -232,11 +254,13 @@ def generate_audio_for_all(
         user_rate: Speech rate for user messages (lower = slower, different voice)
         assistant_rate: Speech rate for assistant messages
         language: Language code ('pl' for Polish, 'en' for English)
+        mode: TTS mode - 'balanced' (EdgeTTS), 'custom-quality' (XTTS-v2), or 'poor' (pyttsx3)
+        voice_sample: Path to custom voice sample WAV file (only for user role)
     
     Returns:
         str: Path to generated WAV file, or None if failed
     """
-    tts_manager = get_tts_manager()
+    tts_manager = get_tts_manager(mode, voice_sample)
     
     if not tts_manager.engines:
         console.print_error("Brak dostępnych silników TTS.")

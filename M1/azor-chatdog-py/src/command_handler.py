@@ -77,7 +77,7 @@ def handle_command(user_input: str) -> bool:
     
     elif command == '/audio':
         if len(parts) < 2:
-            console.print_error("Błąd: Użycie: /audio <last|all> [--pause MS] [--no-play]")
+            console.print_error("Błąd: Użycie: /audio <last|all> [--pause MS] [--no-play] [--mode MODE] [--voice-sample PATH]")
         else:
             handle_audio_subcommand(parts, manager)
     
@@ -158,6 +158,8 @@ def handle_audio_subcommand(parts: list, manager):
     # Parse optional flags
     pause_ms = 500  # default
     play = True  # default
+    mode = 'balanced'  # default: fast, good quality, needs Internet
+    voice_sample = None  # default: no custom voice sample
     
     for i, part in enumerate(parts[2:]):
         if part.startswith('--pause'):
@@ -170,13 +172,28 @@ def handle_audio_subcommand(parts: list, manager):
                     pass
         elif part == '--no-play':
             play = False
+        elif part.startswith('--mode'):
+            if '=' in part:
+                mode = part.split('=')[1]
+            elif i + 1 < len(parts[2:]):
+                mode = parts[3 + i]
+        elif part.startswith('--voice-sample'):
+            if '=' in part:
+                voice_sample = part.split('=')[1]
+            elif i + 1 < len(parts[2:]):
+                voice_sample = parts[3 + i]
     
     if subcommand == 'last':
+        # --pause is not applicable for 'last' (single message). Warn if user provided it.
+        if any(part.startswith('--pause') for part in parts[2:]):
+            console.print_warning("Uwaga: `--pause` jest ignorowane dla `/audio last`, dotyczy tylko `/audio all`.")
+
         generate_audio_for_last(
             session_id=current.session_id,
             history=current.get_history(),
-            pause_ms=pause_ms,
-            play=play
+            play=play,
+            mode=mode,
+            voice_sample=voice_sample
         )
     
     elif subcommand == 'all':
@@ -184,7 +201,9 @@ def handle_audio_subcommand(parts: list, manager):
             session_id=current.session_id,
             history=current.get_history(),
             pause_ms=pause_ms,
-            play=play
+            play=play,
+            mode=mode,
+            voice_sample=voice_sample
         )
     
     else:

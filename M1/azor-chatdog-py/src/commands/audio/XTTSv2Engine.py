@@ -49,8 +49,8 @@ class XTTSv2TTSEngine(TTSEngine):
             self.is_available = False
             return False
     
-    def synthesize(self, text: str, output_path: str, language: str = 'pl', rate: int = 150, role: str = 'assistant') -> bool:
-        """Generate speech using XTTS-v2 (thread-safe)"""
+    def synthesize(self, text: str, output_path: str, language: str = 'pl', rate: int = 150, role: str = 'assistant', voice_sample: str = None) -> bool:
+        """Generate speech using XTTS-v2 (thread-safe) with optional custom voice for user role"""
         if not self.is_available or not self.tts:
             return False
         
@@ -75,24 +75,46 @@ class XTTSv2TTSEngine(TTSEngine):
                     'en': 'en',
                     'english': 'en'
                 }
-                lang_code = lang_map.get(language.lower(), 'en')
+                lang_code = lang_map.get(language.lower(), language.lower())
+                console.print_info(f"🗣️ Wybrany język: {lang_code}")
                 
                 # Calculate speed from rate (XTTS uses speed multiplier, not WPM)
                 # Normal speech is ~150 WPM, so rate/150 gives us speed multiplier
                 speed = max(0.5, min(2.0, rate / 150.0))
                 
-                # XTTS-v2 is multi-speaker and requires speaker parameter
-                # Use default speakers: "Claribel Dervla" (female) or "Damien Black" (male)
-                speaker = "Claribel Dervla" if role.lower() != 'user' else "Damien Black"
+                # Expand voice_sample path (handle ~ and environment variables)
+                if voice_sample:
+                    voice_sample = os.path.expanduser(os.path.expandvars(voice_sample))
                 
-                # Generate audio (XTTS outputs WAV directly)
-                self.tts.tts_to_file(
-                    text=text,
-                    file_path=output_path,
-                    speaker=speaker,
-                    language=lang_code,
-                    speed=speed
-                )
+                # Use custom voice sample ONLY for user role
+                if voice_sample and os.path.exists(voice_sample) and role.lower() == 'user':
+                    console.print_info(f"🎤 Używam niestandardowego głosu użytkownika: {voice_sample}")
+                    # Generate audio with voice cloning
+                    self.tts.tts_to_file(
+                        text=text,
+                        file_path=output_path,
+                        speaker_wav=voice_sample,
+                        language=lang_code,
+                        speed=speed
+                    )
+                else:
+                    if voice_sample and role.lower() != 'user':
+                        console.print_info("ℹ️  Niestandardowy głos jest używany tylko dla wiadomości użytkownika")
+                    elif voice_sample and not os.path.exists(voice_sample):
+                        console.print_warning(f"⚠️  Plik głosu nie istnieje: {voice_sample}, używam domyślnego")
+                    
+                    # XTTS-v2 is multi-speaker and requires speaker parameter
+                    # Use default speakers: "Claribel Dervla" (female) or "Damien Black" (male)
+                    speaker = "Claribel Dervla" if role.lower() != 'user' else "Damien Black"
+                    
+                    # Generate audio (XTTS outputs WAV directly)
+                    self.tts.tts_to_file(
+                        text=text,
+                        file_path=output_path,
+                        speaker=speaker,
+                        language=lang_code,
+                        speed=speed
+                    )
                 
                 # Verify output
                 if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
