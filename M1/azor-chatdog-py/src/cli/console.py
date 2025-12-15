@@ -79,6 +79,12 @@ def display_help(session_id: str, assistant_name: str = None):
     print_help("  /session pop      - Usuwa ostatnią parę wpisów (TY i asystent).")
     print_help("  /session clear    - Czyści historię bieżącej sesji.")
     print_help("  /session new      - Rozpoczyna nową sesję.")
+    print_help("\n  /audio last [--no-play] [--mode MODE] [--voice-sample PATH]  - Generuje audio z ostatniej odpowiedzi asystenta.")
+    print_help("  /audio all [--pause MS] [--no-play] [--mode MODE] [--voice-sample PATH]   - Generuje audio z całej konwersacji.")
+    print_help("    Tryby (--mode): balanced (domyślny, szybki, dobry), custom-quality (wolny, lepszy), poor (szybki, słaby)")
+    print_help("    --voice-sample: ścieżka do pliku WAV z próbką głosu (tylko dla custom-quality)")
+    print_help("    --pause MS: czas pauzy między wiadomościami w milisekundach (domyślnie 500ms dla /audio all).")
+    print_help("    --no-play: nie odtwarza automatycznie wygenerowanego pliku audio; tylko zapisuje go na dysku.")
 
 
 def display_final_instructions(session_id: str):

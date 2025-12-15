@@ -5,6 +5,7 @@ Each command file contains the presentation logic for a specific slash command.
 """
 
 __all__ = [
+    'audio.audio',  # Updated to reflect the new path
     'welcome',
     'session_list',
     'session_display',

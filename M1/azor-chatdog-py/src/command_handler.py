@@ -5,8 +5,9 @@ from commands.session_display import display_full_session
 from commands.session_to_pdf import export_session_to_pdf
 from commands.session_remove import remove_session_command
 from commands.assistant_list import list_assistants_command
+from commands.audio import generate_audio_for_last, generate_audio_for_all
 
-VALID_SLASH_COMMANDS = ['/exit', '/quit', '/switch', '/help', '/session', '/pdf', '/assistant']
+VALID_SLASH_COMMANDS = ['/exit', '/quit', '/switch', '/help', '/session', '/pdf', '/assistant', '/audio']
 
 def handle_command(user_input: str) -> bool:
     """
@@ -73,6 +74,12 @@ def handle_command(user_input: str) -> bool:
     elif command == '/pdf':
         current = manager.get_current_session()
         export_session_to_pdf(current.get_history(), current.session_id, current.assistant_name)
+    
+    elif command == '/audio':
+        if len(parts) < 2:
+            console.print_error("Błąd: Użycie: /audio <last|all> [--pause MS] [--no-play] [--mode MODE] [--voice-sample PATH]")
+        else:
+            handle_audio_subcommand(parts, manager)
     
     elif command == '/assistant':
         if len(parts) < 2:
@@ -141,3 +148,63 @@ def handle_session_subcommand(subcommand: str, manager):
         
     else:
         console.print_error(f"Błąd: Nieznana podkomenda dla /session: {subcommand}. Użyj /help.")
+
+
+def handle_audio_subcommand(parts: list, manager):
+    """Handles /audio subcommands."""
+    current = manager.get_current_session()
+    subcommand = parts[1].lower()
+    
+    # Parse optional flags
+    pause_ms = 500  # default
+    play = True  # default
+    mode = 'balanced'  # default: fast, good quality, needs Internet
+    voice_sample = None  # default: no custom voice sample
+    
+    for i, part in enumerate(parts[2:]):
+        if part.startswith('--pause'):
+            if '=' in part:
+                pause_ms = int(part.split('=')[1])
+            elif i + 1 < len(parts[2:]):
+                try:
+                    pause_ms = int(parts[3 + i])
+                except ValueError:
+                    pass
+        elif part == '--no-play':
+            play = False
+        elif part.startswith('--mode'):
+            if '=' in part:
+                mode = part.split('=')[1]
+            elif i + 1 < len(parts[2:]):
+                mode = parts[3 + i]
+        elif part.startswith('--voice-sample'):
+            if '=' in part:
+                voice_sample = part.split('=')[1]
+            elif i + 1 < len(parts[2:]):
+                voice_sample = parts[3 + i]
+    
+    if subcommand == 'last':
+        # --pause is not applicable for 'last' (single message). Warn if user provided it.
+        if any(part.startswith('--pause') for part in parts[2:]):
+            console.print_warning("Uwaga: `--pause` jest ignorowane dla `/audio last`, dotyczy tylko `/audio all`.")
+
+        generate_audio_for_last(
+            session_id=current.session_id,
+            history=current.get_history(),
+            play=play,
+            mode=mode,
+            voice_sample=voice_sample
+        )
+    
+    elif subcommand == 'all':
+        generate_audio_for_all(
+            session_id=current.session_id,
+            history=current.get_history(),
+            pause_ms=pause_ms,
+            play=play,
+            mode=mode,
+            voice_sample=voice_sample
+        )
+    
+    else:
+        console.print_error(f"Błąd: Nieznana podkomenda dla /audio: {subcommand}. Użyj 'last' lub 'all'.")
