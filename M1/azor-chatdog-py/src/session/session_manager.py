@@ -90,7 +90,7 @@ class SessionManager:
             self._current_session.save_to_file()
         
         # Load session metadata to get assistant_id
-        history, assistant_id, load_error = session_files.load_session_history(session_id)
+        history, assistant_id, title, load_error = session_files.load_session_history(session_id)
         
         if load_error:
             # Failed to load - don't change current session
@@ -188,7 +188,7 @@ class SessionManager:
         
         if cli_session_id:
             # Load session metadata to get assistant_id
-            history, assistant_id, load_error = session_files.load_session_history(cli_session_id)
+            history, assistant_id, title, load_error = session_files.load_session_history(cli_session_id)
             
             if load_error:
                 console.print_error(load_error)
@@ -216,7 +216,7 @@ class SessionManager:
             console.display_help(session.session_id, session.assistant_name)
             if not session.is_empty():
                 from commands.session_summary import display_history_summary
-                display_history_summary(session.get_history(), session.assistant_name)
+                display_history_summary(session.get_history(), session.assistant_name, session.get_title())
         else:
             print("Rozpoczynanie nowej sesji.")
             assistant = registry.get_default()

@@ -44,6 +44,16 @@ def main_loop():
             # Conversation with the model
             session = manager.get_current_session()
             
+            # Generate title if this is the first user message
+            if session.get_title() is None:
+                from commands.title_generator_helper import generate_title_for_message
+                try:
+                    title = generate_title_for_message(user_input, session.assistant)
+                    session.set_title(title)
+                except Exception:
+                    # If title generation fails completely, use fallback // ?? WHERE IS THIS FALLBACK DEFINED?
+                    pass
+            
             # Send message (handles WAL logging internally, returns response and elapsed time)
             response, elapsed_time = session.send_message(user_input)
             
