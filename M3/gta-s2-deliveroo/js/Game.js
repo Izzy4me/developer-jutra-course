@@ -11,6 +11,7 @@ import { Curb } from './Curb.js';
 import * as geom from './utils/geom.js';
 import * as audio from './utils/audio.js';
 import { CONFIG } from './config.js';
+import levelFiles from './levels/index.js';
 
 export default 
 class Game {
@@ -20,11 +21,14 @@ class Game {
         this.input = input;
         
         this.shakeTimer = 0;
-        this.levels = [];
+        this.levelCount = levelFiles.length;
         this.currentLevelIdx = 0;
         this.state = 'TITLE_SCREEN'; 
         this.bonkPos = {x:0, y:0};
         this.player = new PlayerCar(0,0,0);
+        this.currentCars = [];
+        this.currentObstacles = [];
+        this.currentCurbs = [];
         this.currentParkingZones = [];
         this.isMusicOn = true;
         
@@ -35,6 +39,7 @@ class Game {
         this.titleButtonHover = false;
         
         this.updateUI();
+        this.populateLevelButtons();
     }
 
     updateUI() {
@@ -45,13 +50,13 @@ class Game {
     populateLevelButtons() {
         const container = document.getElementById('levels-container');
         container.innerHTML = ''; // Clear old buttons
-        this.levels.forEach((level, index) => {
+        for (let i = 0; i < this.levelCount; i++) {
             const btn = document.createElement('button');
             btn.className = 'level-btn';
-            btn.innerText = `${index + 1}. ${level.name}`;
-            btn.onclick = () => this.loadLevel(index);
+            btn.innerText = `Poziom ${i + 1}`; // Levels now will be hidden until loaded
+            btn.onclick = () => this.loadLevel(i);
             container.appendChild(btn);
-        });
+        }
     }
 
     toggleBackgroundMusic() {
@@ -66,513 +71,86 @@ class Game {
             btn.innerText = 'Dźwięk: WYŁ';
         }
     }
-    
-    defineLevels() {
-        return [
-            {
-                name: "Pusty Parking",
-                type: 'lot',
-                start: { x: 100, y: 360, angle: 0 },
-                obstacles: [ new Pillar(255, 430), new Pillar(395, 430), new Pillar(465, 430), new Pillar(605, 430) ],
-                cars: [],
-                parkingZones: [ new ParkingZone({x: 395, y: 260, w: 70, l: 120, angle: 90}) ],
-                curbs: [
-                    new Curb(this.canvas.width/2, 20, 40, this.canvas.width, 0),
-                    new Curb(this.canvas.width/2, this.canvas.height-20, 40, this.canvas.width, 0),
-                    // new Curb(20, this.canvas.height/2, this.canvas.height, 40, 90 * Math.PI/180),
-                    // new Curb(this.canvas.width-20, this.canvas.height/2, this.canvas.height, 40, 90 * Math.PI/180)
-                ]
-            },
-            {
-                name: "Parking",
-                type: 'lot',
-                start: { x: 100, y: 360, angle: 0 },
-                obstacles: [ new Pillar(255, 430), new Pillar(395, 430), new Pillar(465, 430), new Pillar(605, 430) ],
-                cars: [
-                    new ObstacleCar({x: 255, y: 260, angle: 90, type: 'suv', color: '#8e44ad'}),
-                    new ObstacleCar({x: 395, y: 260, angle: 90, type: 'sedan', color: '#c0392b'}),
-                    new ObstacleCar({x: 465, y: 260, angle: 90, type: 'compact', color: '#27ae60'}),
-                    new ObstacleCar({x: 605, y: 260, angle: 90, type: 'suv', color: '#f39c12'}),
-                    new ObstacleCar({x: 325, y: 460, angle: 90, type: 'compact', color: '#16a085'}),
-                    new ObstacleCar({x: 535, y: 460, angle: 90, type: 'sedan', color: '#2980b9'})
-                ],
-                parkingZones: [
-                    new ParkingZone({x: 325, y: 260, w: 70, l: 120, angle: 90}),
-                    new ParkingZone({x: 535, y: 260, w: 70, l: 120, angle: 90})
-                ],
-                curbs: [
-                    new Curb(this.canvas.width/2, 20, 40, this.canvas.width, 0),
-                    new Curb(this.canvas.width/2, this.canvas.height-20, 40, this.canvas.width, 0),
-                    // new Curb(20, this.canvas.height/2, this.canvas.height, 40, 90 * Math.PI/180),
-                    // new Curb(this.canvas.width-20, this.canvas.height/2, this.canvas.height, 40, 90 * Math.PI/180)
-                ]
-            },
-            {
-                name: "Parking",
-                type: 'lot',
-                start: { x: 100, y: 360, angle: 0 },
-                obstacles: [],
-                cars: [
-                    new ObstacleCar({x: 255, y: 267, angle: 86, type: 'suv', color: '#298049'}),
-                    new ObstacleCar({x: 395, y: 262, angle: 94, type: 'suv', color: '#34495e'}),
-                ],
-                parkingZones: [
-                    new ParkingZone({x: 325, y: 260, w: 70, l: 120, angle: 90})
-                ],
-                curbs: [
-                    new Curb(this.canvas.width/2, 20, 40, this.canvas.width, 0),
-                    new Curb(this.canvas.width/2, this.canvas.height-20, 40, this.canvas.width, 0),
-                ]
-            },
-            {
-                name: "Parking",
-                type: 'lot',
-                start: { x: 100, y: 360, angle: 0 },
-                obstacles: [],
-                cars: [
-                    new ObstacleCar({x: 265, y: 267, angle: 81, type: 'suv', color: '#8e44ad'}),
-                    new ObstacleCar({x: 384, y: 262, angle: 76, type: 'suv', color: '#c0392b'}),
-                ],
-                parkingZones: [
-                    new ParkingZone({x: 325, y: 260, w: 70, l: 120, angle: 90})
-                ],
-                curbs: [
-                    new Curb(this.canvas.width/2, 20, 40, this.canvas.width, 0),
-                    new Curb(this.canvas.width/2, this.canvas.height-20, 40, this.canvas.width, 0),
-                ]
-            },
-            {
-                name: "Parking",
-                type: 'lot',
-                start: { x: 100, y: 360, angle: 0 },
-                obstacles: [],
-                cars: [
-                    new ObstacleCar({x: 265, y: 267, angle: 286, type: 'suv', color: '#3288bd'}),
-                    new ObstacleCar({x: 384, y: 262, angle: 296, type: 'suv', color: '#a974cf'}),
-                    new ObstacleCar({x: 465, y: 260, angle: 270, type: 'compact', color: '#990212'}),
-                    new ObstacleCar({x: 588, y: 269, angle: 293, type: 'suv', color: '#f39c12'}),
-                    new ObstacleCar({x: 287, y: 460, angle: 79, type: 'compact', color: '#16a085'}),
-                    new ObstacleCar({x: 572, y: 460, angle: 90, type: 'sedan', color: '#2980b9'})
-                ],
-                parkingZones: [
-                    new ParkingZone({x: 325, y: 260, w: 70, l: 120, angle: 90}),
-                    new ParkingZone({x: 535, y: 260, w: 70, l: 120, angle: 90}),
-                    new ParkingZone({x: 325, y: 460, w: 70, l: 120, angle: 90}),
-                    new ParkingZone({x: 535, y: 460, w: 70, l: 120, angle: 90}),
-                ],
-                curbs: [
-                    new Curb(this.canvas.width/2, 20, 40, this.canvas.width, 0),
-                    new Curb(this.canvas.width/2, this.canvas.height-20, 40, this.canvas.width, 0),
-                ]
-            },
-            {
-                name: "Ulica",
-                type: 'street',
-                start: { x: 100, y: this.canvas.height/2 + 35, angle: 0 },
-                obstacles: [],
-                cars: [
-                    new NpcCar({x: this.canvas.width, y: this.canvas.height/2 - 35, angle: 180, speed: -4, type: 'compact',color: '#9b59b6'}),
-                    new NpcCar({x: this.canvas.width - 600, y: this.canvas.height/2 - 35, angle: 180, speed: -7, kind: 'aggressive', type: 'sedan', color: '#34495e'}),
-                    new NpcCar({x: this.canvas.width - 300, y: this.canvas.height/2 - 35, angle: 180, speed: -5, type: 'suv', color: '#9b59b6'}),
-                ],
-                parkingZones: [ new ParkingZone({x: this.canvas.width - 100, y: this.canvas.height/2 + 35, w: 70, l: 130, angle: 0}) ],
-                curbs: [
-                    new Curb(this.canvas.width/2, this.canvas.height/2 - 120, 100, this.canvas.width, 0),
-                    new Curb(this.canvas.width/2, this.canvas.height/2 + 120, 100, this.canvas.width, 0),
-                ]
-            },
-            {
-                name: "Ulica",
-                type: 'street',
-                start: { x: 100, y: this.canvas.height/2 + 35, angle: 0 },
-                obstacles: [
-                    new Pillar(605, this.canvas.height/2 + 35)
-                ],
-                cars: [
-                    new NpcCar({x: this.canvas.width, y: this.canvas.height/2 - 35, angle: 180, speed: -4, type: 'compact',color: '#9b59b6'}),
-                    new NpcCar({x: this.canvas.width - 600, y: this.canvas.height/2 - 35, angle: 180, speed: -7, kind: 'aggressive', type: 'sedan', color: '#34495e'}),
-                    new NpcCar({x: this.canvas.width - 300, y: this.canvas.height/2 - 35, angle: 180, speed: -5, type: 'suv', color: '#9b59b6'}),
-                ],
-                parkingZones: [ new ParkingZone({x: this.canvas.width - 100, y: this.canvas.height/2 + 35, w: 70, l: 130, angle: 0}) ],
-                curbs: [
-                    new Curb(this.canvas.width/2, this.canvas.height/2 - 120, 100, this.canvas.width, 0),
-                    new Curb(this.canvas.width/2, this.canvas.height/2 + 120, 100, this.canvas.width, 0),
-                ]
-            },
-            {
-                name: "Ulica",
-                type: 'street',
-                start: { x: 100, y: this.canvas.height/2 + 35, angle: 0 },
-                obstacles: [
-                    new Pillar(500, this.canvas.height/2 + 35),
-                    new Pillar(500 + this.canvas.width/5, this.canvas.height/2 + 35),
-                ],
-                cars: [
-                    new NpcCar({x: this.canvas.width, y: this.canvas.height/2 - 35, angle: 180, speed: -4, type: 'compact',color: '#9b59b6'}),
-                    new NpcCar({x: this.canvas.width - 600, y: this.canvas.height/2 - 35, angle: 180, speed: -7, kind: 'aggressive', type: 'sedan', color: '#34495e'}),
-                    new NpcCar({x: this.canvas.width - 300, y: this.canvas.height/2 - 35, angle: 180, speed: -5, type: 'suv', color: '#9b59b6'}),
-                ],
-                parkingZones: [ new ParkingZone({x: this.canvas.width - 100, y: this.canvas.height/2 + 35, w: 70, l: 130, angle: 0}) ],
-                curbs: [
-                    new Curb(this.canvas.width/2, this.canvas.height/2 - 120, 100, this.canvas.width, 0),
-                    new Curb(this.canvas.width/2, this.canvas.height/2 + 120, 100, this.canvas.width, 0),
-                ]
-            },
-            {
-                name: "Ulica (Wyprzedzanie)",
-                type: 'street',
-                start: { x: 100, y: this.canvas.height/2 + 35, angle: 0 },
-                obstacles: [],
-                cars: [
-                    new NpcCar({x: this.canvas.width*3/4, y: this.canvas.height/2 - 35, angle: 180, speed: -6, color: '#9b59b6'}),
-                    new NpcCar({x: this.canvas.width*3/4 + 300, y: this.canvas.height/2 - 35, angle: 180, speed: -8, kind: 'aggressive', type: 'suv', color: '#812c2c'}),
-                    new NpcCar({x: this.canvas.width*1/4, y: this.canvas.height/2 - 35, angle: 180, speed: -6, type: 'compact', color: '#234923'}),
-                    new NpcCar({x: 400, y: this.canvas.height/2 + 35, angle: 0, speed: 2, color: '#1abc9c'}),
-                ],
-                parkingZones: [ new ParkingZone({x: this.canvas.width - 100, y: this.canvas.height/2 + 35, w: 70, l: 100, angle: 0}) ],
-                curbs: [
-                    new Curb(this.canvas.width/2, this.canvas.height/2 - 120, 100, this.canvas.width, 0),
-                    new Curb(this.canvas.width/2, this.canvas.height/2 + 120, 100, this.canvas.width, 0),
-                ]
-            },
-            {
-                name: "Ulica (Wyprzedzanie)",
-                type: 'street',
-                start: { x: 100, y: this.canvas.height/2 + 35, angle: 0 },
-                obstacles: [],
-                cars: [
-                    new NpcCar({x: this.canvas.width - 300, y: this.canvas.height/2 - 35, angle: 180, speed: -4, color: '#9b59b6'}),
-                    new NpcCar({x: this.canvas.width - 100, y: this.canvas.height/2 - 35, angle: 180, speed: -5.5, kind: 'aggressive', type: 'suv', color: '#812c2c'}),
-                    new NpcCar({x: this.canvas.width + 100, y: this.canvas.height/2 - 35, angle: 180, speed: -3, type: 'suv', color: '#9b59b6'}),
-                    new NpcCar({x: this.canvas.width * 1/4, y: this.canvas.height/2 + 35, angle: 0, speed: 2, color: '#1abc9c'}),
-                    new NpcCar({x: this.canvas.width * 2/4, y: this.canvas.height/2 + 35, angle: 0, speed: 2, color: '#225522'}),
-                    new NpcCar({x: this.canvas.width * 3/4, y: this.canvas.height/2 + 35, angle: 0, speed: 2, color: '#726834'})
-                ],
-                parkingZones: [ new ParkingZone({x: this.canvas.width - 100, y: this.canvas.height/2 + 35, w: 70, l: 100, angle: 0}) ],
-                curbs: [
-                    new Curb(this.canvas.width/2, this.canvas.height/2 - 120, 100, this.canvas.width, 0),
-                    new Curb(this.canvas.width/2, this.canvas.height/2 + 120, 100, this.canvas.width, 0),
-                ]
-            },
-            {
-                name: "Koperta",
-                type: 'street',
-                start: { x: 100, y: this.canvas.height/2 + 35, angle: 0 },
-                obstacles: [],
-                cars: [
-                    new ObstacleCar({x: 600, y: this.canvas.height/2 + 35, angle: -3, type: 'suv', color: '#e67e22'}),
-                    new ObstacleCar({x: 870, y: this.canvas.height/2 + 35, angle: 5, type: 'suv', color: '#8e44ad'})
-                ],
-                parkingZones: [ new ParkingZone({x: 735, y: this.canvas.height/2 + 35, w: 70, l: 130, angle: 0 }) ],
-                curbs: [
-                    new Curb(this.canvas.width/2, this.canvas.height/2 - 120, 100, this.canvas.width, 0),
-                    new Curb(this.canvas.width/2, this.canvas.height/2 + 120, 100, this.canvas.width, 0),
-                ]
-            },
-            {
-                name: "Koperta na stresie",
-                type: 'street',
-                start: { x: 100, y: this.canvas.height/2 + 35, angle: 0 },
-                obstacles: [],
-                cars: [
-                    new ObstacleCar({x: 600, y: this.canvas.height/2 + 35, angle: -3, type: 'suv', color: '#e67e22'}),
-                    new ObstacleCar({x: 870, y: this.canvas.height/2 + 35, angle: 5, type: 'suv', color: '#8e44ad'}),
-                    new NpcCar({x: this.canvas.width, y: this.canvas.height/2 - 35, angle: 180, speed: -3, type: 'suv', color: '#9b59b6'}),
-                    new NpcCar({x: this.canvas.width * 3/4, y: this.canvas.height/2 - 35, angle: 180, speed: -3, type: 'suv', color: '#333333'}),
-                    new NpcCar({x: this.canvas.width * 1/4, y: this.canvas.height/2 - 35, angle: 180, speed: -3, type: 'compact', color: '#ee8135'}),
-                    new NpcCar({x: this.canvas.width * 2/4, y: this.canvas.height/2 - 35, angle: 180, speed: -3, type: 'compact', color: '#6e0c21'}),
-                ],
-                parkingZones: [ new ParkingZone({x: 735, y: this.canvas.height/2 + 35, w: 70, l: 130, angle: 0 }) ],
-                curbs: [
-                    new Curb(this.canvas.width/2, this.canvas.height/2 - 120, 100, this.canvas.width, 0),
-                    new Curb(this.canvas.width/2, this.canvas.height/2 + 120, 100, this.canvas.width, 0),
-                ]
-            },
-            {
-                name: "Skrzyżowanie",
-                type: 'street_crossing',
-                start: { x: this.canvas.width/2 - 35, y: 100 + 35, angle: 90 },
-                obstacles: [],
-                cars: [
-                    new NpcCar({x: this.canvas.width - 0, y: this.canvas.height/2 - 35, angle: 180, speed: -5, type: 'sedan', color: '#990212'}),
-                    new NpcCar({x: this.canvas.width - 250, y: this.canvas.height/2 - 35, angle: 180, speed: -5, type: 'compact', color: '#ee8135'}),
-                    new NpcCar({x: this.canvas.width - 500, y: this.canvas.height/2 - 35, angle: 180, speed: -5, type: 'compact', color: '#6e0c21'}),
-                    new NpcCar({x: this.canvas.width - 750, y: this.canvas.height/2 - 35, angle: 180, speed: -5, type: 'suv', color: '#9a8135'}),
-                    new NpcCar({x: this.canvas.width - 1000, y: this.canvas.height/2 - 35, angle: 180, speed: -5, type: 'suv', color: '#e74c3c'}),
-                    new NpcCar({x: this.canvas.width - 1250, y: this.canvas.height/2 - 35, angle: 180, speed: -5, type: 'compact', color: '#71797e'}),
-                    
-                ],
-                parkingZones: [
-                    new ParkingZone({x: this.canvas.width/2 - 35, y: this.canvas.height - 100, w: 70, l: 130, angle: 90})
-                ],
-                curbs: [
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                ]
-            },
-            {
-                name: "Skrzyżowanie",
-                type: 'street_crossing',
-                start: { x: this.canvas.width/2 - 35, y: 100 + 35, angle: 90 },
-                obstacles: [],
-                cars: [
-                    new NpcCar({x: this.canvas.width - 0, y: this.canvas.height/2 - 35, angle: 180, speed: -15, type: 'sedan', color: '#990212'}),
-                    new NpcCar({x: this.canvas.width / 2, y: this.canvas.height/2 - 35, angle: 180, speed: -15, type: 'suv', color: '#cf8a36'}),
-                ],
-                parkingZones: [
-                    new ParkingZone({x: this.canvas.width/2 - 35, y: this.canvas.height - 100, w: 70, l: 130, angle: 90})
-                ],
-                curbs: [
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                ]
-            },
-            {
-                name: "Skrzyżowanie",
-                type: 'street_crossing',
-                start: { x: this.canvas.width/2 - 35, y: 100 + 35, angle: 90 },
-                obstacles: [],
-                cars: [
-                    new NpcCar({x: this.canvas.width - 0, y: this.canvas.height/2 - 35, angle: 180, speed: -15, type: 'sedan', color: '#990212'}),
-                    new NpcCar({x: this.canvas.width / 2, y: this.canvas.height/2 - 35, angle: 180, speed: -15, type: 'suv', color: '#cf8a36'}),
-                ],
-                parkingZones: [
-                    new ParkingZone({x: this.canvas.width/2 - 400, y: this.canvas.height/2 - 35, w: 130, l: 70, angle: 90})
-                ],
-                curbs: [
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                ]
-            },
-            {
-                name: "Skrzyżowanie",
-                type: 'street_crossing',
-                start: { x: this.canvas.width/2 - 35, y: 100 + 35, angle: 90 },
-                obstacles: [],
-                cars: [
-                    new NpcCar({x: this.canvas.width - 0, y: this.canvas.height/2 - 35, angle: 180, speed: -15, type: 'sedan', color: '#990212'}),
-                    new NpcCar({x: this.canvas.width / 2, y: this.canvas.height/2 - 35, angle: 180, speed: -15, type: 'suv', color: '#cf8a36'}),
-                    new NpcCar({x: this.canvas.width / 2, y: this.canvas.height/2 + 35, angle: 0, speed: +15, type: 'compact', color: '#297122'}),
-                    new NpcCar({x: 0, y: this.canvas.height/2 + 35, angle: 0, speed: +15, type: 'suv', color: '#912a4c'}),
-                ],
-                parkingZones: [
-                    new ParkingZone({x: this.canvas.width/2 - 400, y: this.canvas.height/2 - 35, w: 130, l: 70, angle: 90})
-                ],
-                curbs: [
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                ]
-            },
-            {
-                name: "Skrzyżowanie",
-                type: 'street_crossing',
-                start: { x: this.canvas.width/2 - 35, y: 100 + 35, angle: 90 },
-                obstacles: [],
-                cars: [
-                    new NpcCar({x: this.canvas.width - 0, y: this.canvas.height/2 - 35, angle: 180, speed: -20, type: 'sedan', kind: 'aggressive', color: '#990212'}),
-                    new NpcCar({x: this.canvas.width / 2, y: this.canvas.height/2 - 35, angle: 180, speed: -20, type: 'suv', kind: 'aggressive', color: '#cf8a36'}),
-                ],
-                parkingZones: [
-                    new ParkingZone({x: this.canvas.width/2 - 135, y: this.canvas.height/2 - 35, w: 130, l: 70, angle: 90})
-                ],
-                curbs: [
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                ]
-            },
-            {
-                name: "Skrzyżowanie",
-                type: 'street_crossing',
-                start: { x: this.canvas.width/2 - 35, y: 100 + 35, angle: 90 },
-                obstacles: [],
-                cars: [
-                    new NpcCar({x: this.canvas.width / 4 * 0, y: this.canvas.height/2 - 35, angle: 180, speed: -20, type: 'suv', color: '#849292'}),
-                    new NpcCar({x: this.canvas.width / 4 * 1, y: this.canvas.height/2 - 35, angle: 180, speed: -20, type: 'suv', color: '#b4b8ba'}),
-                    new NpcCar({x: this.canvas.width / 4 * 2, y: this.canvas.height/2 - 35, angle: 180, speed: -20, type: 'suv', color: '#ef67ef'}),
-                    new NpcCar({x: this.canvas.width / 4 * 3, y: this.canvas.height/2 - 35, angle: 180, speed: -20, type: 'suv', color: '#8960a8'}),
-                ],
-                parkingZones: [
-                    new ParkingZone({x: this.canvas.width/2 - 35, y: this.canvas.height - 100, w: 70, l: 130, angle: 90})
-                ],
-                curbs: [
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                ]
-            },
-            {
-                name: "Skrzyżowanie",
-                type: 'street_crossing',
-                start: { x: this.canvas.width/2 - 35, y: 100 + 35, angle: 90 },
-                obstacles: [],
-                cars: [
-                    new NpcCar({x: this.canvas.width / 5 * 0, y: this.canvas.height/2 - 35, angle: 180, speed: -30, type: 'suv', color: '#849292'}),
-                    new NpcCar({x: this.canvas.width / 5 * 1, y: this.canvas.height/2 - 35, angle: 180, speed: -30, type: 'suv', color: '#b4b8ba'}),
-                    new NpcCar({x: this.canvas.width / 5 * 2, y: this.canvas.height/2 - 35, angle: 180, speed: -30, type: 'suv', color: '#ef67ef'}),
-                    new NpcCar({x: this.canvas.width / 5 * 3, y: this.canvas.height/2 - 35, angle: 180, speed: -30, type: 'suv', color: '#8960a8'}),
-                    new NpcCar({x: this.canvas.width / 5 * 4, y: this.canvas.height/2 - 35, angle: 180, speed: -30, type: 'suv', color: '#333333'}),
-                ],
-                parkingZones: [
-                    new ParkingZone({x: this.canvas.width/2 - 35, y: this.canvas.height - 100, w: 70, l: 130, angle: 90})
-                ],
-                curbs: [
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 - 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb((this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 - 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                    new Curb(this.canvas.width/2 + 120 + (this.canvas.width/2 - 120)/2, this.canvas.height/2 + 120, 100, this.canvas.width/2 - 20, 0),
-                    new Curb(this.canvas.width/2 + 120, this.canvas.height/2 + 120 + (this.canvas.height/2 - 120)/2, 100, this.canvas.height/2 - 120, 90 * Math.PI/180),
-                ]
-            },
-            {
-                name: "Ekspresówka",
-                type: 'highway',
-                start: { x: 275, y: this.canvas.height/2 - 120, angle: 0 },
-                obstacles: [],
-                cars: [
-                    // Górne pasy (→→→) - jadą w prawo
-                    // Pas 1 (górny)
-                    new NpcCar({x: 0, y: this.canvas.height/2 - 205, angle: 0, speed: 10, type: 'sedan', color: '#e74c3c'}),
-                    new NpcCar({x: 450, y: this.canvas.height/2 - 210, angle: 0, speed: 14, kind: 'aggressive', type: 'compact', color: '#3498db'}),
-                    new NpcCar({x: 750, y: this.canvas.height/2 - 200, angle: 0, speed: 11, kind: 'aggressive', type: 'suv', color: '#9b59b6'}),
-                    new NpcCar({x: 1050, y: this.canvas.height/2 - 205, angle: 0, speed: 13, kind: 'aggressive', type: 'sedan', color: '#f39c12'}),
-                    new NpcCar({x: 1350, y: this.canvas.height/2 - 213, angle: 0, speed: 15, kind: 'aggressive', type: 'compact', color: '#1abc9c'}),
 
-                    // Pas 2 (środkowy górny)
-                    new NpcCar({x: 0, y: this.canvas.height/2 - 125, angle: 0, speed: 10, kind: 'aggressive', type: 'suv', color: '#34495e'}),
-                    new NpcCar({x: 400, y: this.canvas.height/2 - 120, angle: 0, speed: 12, kind: 'aggressive', type: 'sedan', color: '#e67e22'}),
-                    new NpcCar({x: 700, y: this.canvas.height/2 - 130, angle: 0, speed: 11, type: 'compact', color: '#16a085'}),
-                    new NpcCar({x: 950, y: this.canvas.height/2 - 127, angle: 0, speed: 13, kind: 'aggressive', type: 'suv', color: '#c0392b'}),
-                    new NpcCar({x: 1250, y: this.canvas.height/2 - 121, angle: 0, speed: 14, kind: 'aggressive', type: 'sedan', color: '#8e44ad'}),
-                    new NpcCar({x: 1550, y: this.canvas.height/2 - 130, angle: 0, speed: 10, type: 'compact', color: '#2c3e50'}),
-
-                    // Dolne pasy (←←←) - jadą w lewo
-                    // Pas 3 (środkowy dolny)
-                    new NpcCar({x: this.canvas.width - 150, y: this.canvas.height/2 + 125, angle: 180, speed: -11, kind: 'aggressive', type: 'sedan', color: '#95a5a6'}),
-                    new NpcCar({x: this.canvas.width - 450, y: this.canvas.height/2 + 125, angle: 180, speed: -13, kind: 'aggressive', type: 'compact', color: '#d35400'}),
-                    new NpcCar({x: this.canvas.width - 750, y: this.canvas.height/2 + 125, angle: 180, speed: -12, kind: 'aggressive', type: 'suv', color: '#27ae60'}),
-                    new NpcCar({x: this.canvas.width - 1050, y: this.canvas.height/2 + 125, angle: 180, speed: -14, kind: 'aggressive', type: 'sedan', color: '#2980b9'}),
-                    new NpcCar({x: this.canvas.width - 1350, y: this.canvas.height/2 + 125, angle: 180, speed: -10, type: 'compact', color: '#8e44ad'}),
-
-                    // Pas 4 (dolny)
-                    new NpcCar({x: this.canvas.width - 250, y: this.canvas.height/2 + 205, angle: 180, speed: -15, kind: 'aggressive', type: 'suv', color: '#e74c3c'}),
-                    new NpcCar({x: this.canvas.width - 500, y: this.canvas.height/2 + 205, angle: 180, speed: -12, kind: 'aggressive', type: 'sedan', color: '#f39c12'}),
-                    new NpcCar({x: this.canvas.width - 800, y: this.canvas.height/2 + 205, angle: 180, speed: -13, type: 'compact', color: '#1abc9c'}),
-                    new NpcCar({x: this.canvas.width - 1100, y: this.canvas.height/2 + 205, angle: 180, speed: -11, kind: 'aggressive', type: 'suv', color: '#34495e'}),
-                    new NpcCar({x: this.canvas.width - 1400, y: this.canvas.height/2 + 205, angle: 180, speed: -14, kind: 'aggressive', type: 'sedan', color: '#c0392b'}),
-                    new NpcCar({x: this.canvas.width - 1650, y: this.canvas.height/2 + 205, angle: 180, speed: -16, type: 'compact', color: '#16a085'}),
-                ],
-                parkingZones: [
-                    // Parking na poboczu (górna strona)
-                    new ParkingZone({x: 200, y: this.canvas.height/2 + 123, w: 84, l: 120, angle: 0})
-                ],
-                curbs: [
-                    // Górna krawędź
-                    new Curb(this.canvas.width/2, this.canvas.height/2 - 320, 80, this.canvas.width, 0),
-                    // Dolna krawędź
-                    new Curb(this.canvas.width/2, this.canvas.height/2 + 320, 80, this.canvas.width, 0),
-                ]
-            },
-
-        ];
+    async startGame() {
+        this.state = 'LOADING';
+        await this.loadLevel(this.currentLevelIdx);
     }
 
-    startGame() {
-        this.state = 'RUNNING';
-        this.loadLevel(this.currentLevelIdx);
-    }
-
-    loadLevel(idx) {
-        this.levels = this.defineLevels(); // Always get fresh level data
-        this.populateLevelButtons();
-
-        if (idx >= this.levels.length) {
+    async loadLevel(idx) {
+        if (idx >= this.levelCount) {
             alert('Gratulacje! Ukończyłeś wszystkie poziomy!');
             idx = 0;
         }
         this.currentLevelIdx = idx;
-        const ld = this.levels[idx];
 
-        // Zatrzymaj wszystkie klaksony przed załadowaniem nowego poziomu
-        if (this.currentCars) {
-            this.currentCars.forEach(car => {
-                if (car.hornSound && !car.hornSound.paused) {
-                    car.hornSound.pause();
-                    car.hornSound.currentTime = 0;
-                }
+        try {
+            const levelFileName = levelFiles[idx];
+            const levelModule = await import(`./levels/${levelFileName}`);
+            const levelFactory = levelModule.default;
+            
+            const ld = levelFactory(this.canvas, {
+                Pillar,
+                ObstacleCar,
+                NpcCar,
+                ParkingZone,
+                Curb
             });
-        }
 
-        this.player.reset(ld.start.x, ld.start.y, ld.start.angle);
-        this.currentCars = ld.cars || [];
-        this.currentObstacles = ld.obstacles || [];
-        this.currentCurbs = ld.curbs || [];
-        this.currentParkingZones = ld.parkingZones || [];
-        
-        this.state = 'RUNNING';
-        this.shakeTimer = 0;
-        
-        document.getElementById('toggle-steering-mode').innerText = `Asystent Kierownicy: ${this.player.steeringMode === 'DRIVING' ? 'WŁ' : 'WYŁ'}`;
-        document.getElementById('toggle-winter-mode').innerText = `Poślizgi Zimowe: ${this.player.winterMode ? 'WŁ' : 'WYŁ'}`;
+            // Update button text with the actual level name
+            const btn = document.querySelector(`#levels-container .level-btn:nth-child(${idx + 1})`);
+            if (btn) {
+                btn.innerText = `${idx + 1}. ${ld.name}`;
+            }
 
-        const levelButtons = document.querySelectorAll('#levels-container .level-btn');
-        levelButtons.forEach((btn, i) => btn.classList.toggle('active', i === idx));
-
-        const music = document.getElementById('background-music');
-        if (music && this.isMusicOn) {
-            music.currentTime = 0;
-            const promise = music.play();
-            if (promise !== undefined) {
-                promise.catch(error => {
-                    console.log("Music autoplay was prevented. Click the screen to play.");
-                    document.body.addEventListener('click', () => {
-                        if (this.isMusicOn) music.play();
-                    }, { once: true });
+            // Zatrzymaj wszystkie klaksony przed załadowaniem nowego poziomu
+            if (this.currentCars) {
+                this.currentCars.forEach(car => {
+                    if (car.hornSound && !car.hornSound.paused) {
+                        car.hornSound.pause();
+                        car.hornSound.currentTime = 0;
+                    }
                 });
             }
+
+            this.player.reset(ld.start.x, ld.start.y, ld.start.angle);
+            this.currentCars = ld.cars || [];
+            this.currentObstacles = ld.obstacles || [];
+            this.currentCurbs = ld.curbs || [];
+            this.currentParkingZones = ld.parkingZones || [];
+            this.level = ld; // Store current level data
+            
+            this.state = 'RUNNING';
+            this.shakeTimer = 0;
+            
+            document.getElementById('toggle-steering-mode').innerText = `Asystent Kierownicy: ${this.player.steeringMode === 'DRIVING' ? 'WŁ' : 'WYŁ'}`;
+            document.getElementById('toggle-winter-mode').innerText = `Poślizgi Zimowe: ${this.player.winterMode ? 'WŁ' : 'WYŁ'}`;
+
+            const levelButtons = document.querySelectorAll('#levels-container .level-btn');
+            levelButtons.forEach((btn, i) => btn.classList.toggle('active', i === idx));
+
+            const music = document.getElementById('background-music');
+            if (music && this.isMusicOn) {
+                music.currentTime = 0;
+                const promise = music.play();
+                if (promise !== undefined) {
+                    promise.catch(error => {
+                        console.log("Music autoplay was prevented. Click the screen to play.");
+                        document.body.addEventListener('click', () => {
+                            if (this.isMusicOn) music.play();
+                        }, { once: true });
+                    });
+                }
+            }
+        } catch (error) {
+            console.error(`Failed to load level ${idx}:`, error);
+            alert(`Nie udało się załadować poziomu ${idx + 1}.`);
         }
     }
 
     update() {
         // Title screen - handled by mouse events
-        if (this.state === 'TITLE_SCREEN') {
+        if (this.state === 'TITLE_SCREEN' || this.state === 'LOADING') {
             return;
         }
         
@@ -737,6 +315,19 @@ class Game {
             return;
         }
 
+        // Loading overlay: don't attempt to read this.level while it's being fetched
+        if (this.state === 'LOADING') {
+            this.ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.font = '22px Arial, sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText('Ładowanie poziomu...', this.canvas.width / 2, this.canvas.height / 2);
+            this.ctx.restore();
+            return;
+        }
+
         // Level Complete Screen
         if (this.state === 'LEVEL_COMPLETE') {
             this.drawLevelCompleteScreen();
@@ -744,15 +335,15 @@ class Game {
             return;
         }
 
-        // Environment
-        if (this.levels[this.currentLevelIdx].type === 'lot') {
+        // Environment - guard against missing this.level
+        const levelType = (this.level && this.level.type) ? this.level.type : 'street';
+        if (levelType === 'lot') {
             this.drawLotEnvironment();
-        } else if (this.levels[this.currentLevelIdx].type === 'street_crossing') {
+        } else if (levelType === 'street_crossing') {
             this.drawStreetCrossingEnvironment();
-        } else if (this.levels[this.currentLevelIdx].type === 'highway') {
+        } else if (levelType === 'highway') {
             this.drawHighwayEnvironment();
-        }
-        else {
+        } else {
             this.drawStreetEnvironment();
         }
 
