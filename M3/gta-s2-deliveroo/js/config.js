@@ -1,5 +1,31 @@
-// Lightweight wrapper exporting the existing global CONFIG.
-// This preserves original behavior while enabling ES module imports.
-const _CONFIG = typeof window !== 'undefined' && window.CONFIG ? window.CONFIG : {};
-export const CONFIG = _CONFIG;
+export const CONFIG = {
+    carWidth: 44,
+    carLength: 90,
+    wheelBase: 60,
+    wheelWidth: 10,
+    wheelLength: 20,
+    kmhFactor: 8,
+    maxSpeed: 18.0,
+    maxReverseSpeed: -5.0,
+    carMode: 'normal',
+    accelerationNormal: 0.021,
+    accelerationSport: 0.15,
+    get acceleration() { return this.carMode === 'sport' ? this.accelerationSport : this.accelerationNormal; },
+    friction: 0.06,
+    brakingForce: 0.5,
+    maxSteerAngle: 0.65,
+    steerSpeed: 0.03,
+    steerRestoringDriving: 0.02,
+    handbrakeBoostRate: 0.018,
+    handbrakeBoostMax: 1.0,
+    handbrakeBoostMultiplier: 6.0,
+    handbrakeBoostDecay: 0.05,
+    tireGrip: 0.85,
+    tireGripBraking: 0.65,
+    driftThreshold: 2.0,
+    driftFriction: 0.98,
+    angularDamping: 0.94,
+    lateralForceMultiplier: 2.0,
+    curbSafeSpeed: 1.5
+};
 export default CONFIG;

@@ -1,29 +1,131 @@
-// Audio utilities wrapper. Re-export audio helpers from the global scope to maintain behavior.
-function missingWarn(name) {
-  return function() { console.warn(name + ' is not available on window.'); };
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+export function getAudioContext() {
+    return audioCtx;
 }
 
-export const audioCtx = (typeof window !== 'undefined' && window.audioCtx) ? window.audioCtx : null;
+export function playBonkSound() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.5);
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.6);
+}
 
-export const playBonkSound = (typeof window !== 'undefined' && window.playBonkSound) ? window.playBonkSound : missingWarn('playBonkSound');
-export const playCurbSound = (typeof window !== 'undefined' && window.playCurbSound) ? window.playCurbSound : missingWarn('playCurbSound');
-export const startDriftSound = (typeof window !== 'undefined' && window.startDriftSound) ? window.startDriftSound : missingWarn('startDriftSound');
-export const updateDriftSound = (typeof window !== 'undefined' && window.updateDriftSound) ? window.updateDriftSound : missingWarn('updateDriftSound');
-export const stopDriftSound = (typeof window !== 'undefined' && window.stopDriftSound) ? window.stopDriftSound : missingWarn('stopDriftSound');
-export const startEngineRevSound = (typeof window !== 'undefined' && window.startEngineRevSound) ? window.startEngineRevSound : missingWarn('startEngineRevSound');
-export const updateEngineRevSound = (typeof window !== 'undefined' && window.updateEngineRevSound) ? window.updateEngineRevSound : missingWarn('updateEngineRevSound');
-export const stopEngineRevSound = (typeof window !== 'undefined' && window.stopEngineRevSound) ? window.stopEngineRevSound : missingWarn('stopEngineRevSound');
-export const playLevelCompleteSound = (typeof window !== 'undefined' && window.playLevelCompleteSound) ? window.playLevelCompleteSound : missingWarn('playLevelCompleteSound');
+export function playCurbSound() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(80, audioCtx.currentTime);
+    osc.frequency.linearRampToValueAtTime(60, audioCtx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.2);
+}
 
-export default {
-  audioCtx,
-  playBonkSound,
-  playCurbSound,
-  startDriftSound,
-  updateDriftSound,
-  stopDriftSound,
-  startEngineRevSound,
-  updateEngineRevSound,
-  stopEngineRevSound,
-  playLevelCompleteSound,
-};
+let driftOscillator = null;
+let driftGain = null;
+
+export function startDriftSound(intensity = 1.0) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (driftOscillator) return;
+    driftOscillator = audioCtx.createOscillator();
+    driftGain = audioCtx.createGain();
+    driftOscillator.type = 'sawtooth';
+    driftOscillator.frequency.setValueAtTime(180 + intensity * 100, audioCtx.currentTime);
+    driftGain.gain.setValueAtTime(0, audioCtx.currentTime);
+    driftGain.gain.linearRampToValueAtTime(0.15 * intensity, audioCtx.currentTime + 0.05);
+    driftOscillator.connect(driftGain);
+    driftGain.connect(audioCtx.destination);
+    driftOscillator.start();
+}
+
+export function updateDriftSound(intensity = 1.0) {
+    if (!driftOscillator || !driftGain) return;
+    const now = audioCtx.currentTime;
+    driftOscillator.frequency.setValueAtTime(180 + intensity * 100, now);
+    driftGain.gain.setValueAtTime(0.15 * intensity, now);
+}
+
+export function stopDriftSound() {
+    if (!driftOscillator || !driftGain) return;
+    const now = audioCtx.currentTime;
+    driftGain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+    setTimeout(() => {
+        if (driftOscillator) {
+            try { driftOscillator.stop(); } catch (e) {}
+            driftOscillator.disconnect();
+            driftGain.disconnect();
+        }
+        driftOscillator = null;
+        driftGain = null;
+    }, 150);
+}
+
+let engineRevOscillator = null;
+let engineRevGain = null;
+
+export function startEngineRevSound(revLevel = 0.5) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (engineRevOscillator) return;
+    engineRevOscillator = audioCtx.createOscillator();
+    engineRevGain = audioCtx.createGain();
+    engineRevOscillator.type = 'sawtooth';
+    engineRevOscillator.frequency.setValueAtTime(80 + revLevel * 120, audioCtx.currentTime);
+    engineRevGain.gain.setValueAtTime(0, audioCtx.currentTime);
+    engineRevGain.gain.linearRampToValueAtTime(0.12 * revLevel, audioCtx.currentTime + 0.05);
+    engineRevOscillator.connect(engineRevGain);
+    engineRevGain.connect(audioCtx.destination);
+    engineRevOscillator.start();
+}
+
+export function updateEngineRevSound(revLevel = 0.5) {
+    if (!engineRevOscillator || !engineRevGain) return;
+    const now = audioCtx.currentTime;
+    engineRevOscillator.frequency.setValueAtTime(80 + revLevel * 120, now);
+    engineRevGain.gain.setValueAtTime(0.12 * revLevel, now);
+}
+
+export function stopEngineRevSound() {
+    if (!engineRevOscillator || !engineRevGain) return;
+    const now = audioCtx.currentTime;
+    engineRevGain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+    setTimeout(() => {
+        if (engineRevOscillator) {
+            try { engineRevOscillator.stop(); } catch (e) {}
+            engineRevOscillator.disconnect();
+            engineRevGain.disconnect();
+        }
+        engineRevOscillator = null;
+        engineRevGain = null;
+    }, 200);
+}
+
+export function playLevelCompleteSound() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.connect(audioCtx.destination);
+    const notes = [261.63, 329.63, 392.00, 523.25];
+    notes.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime + i * 0.1);
+        osc.connect(gain);
+        osc.start(audioCtx.currentTime + i * 0.1);
+        osc.stop(audioCtx.currentTime + i * 0.1 + 0.1);
+    });
+}
+
+export { audioCtx };
