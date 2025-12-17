@@ -156,9 +156,9 @@
             <div class="stat-row">Światła: <span class="stat-val" id="ui-lights">ON</span></div>
             <div class="stat-row">Poślizg: <span class="stat-val" id="ui-drift" style="color: #3498db;">NIE</span></div>
             <div class="stat-row">Boost: <span class="stat-val" id="ui-boost" style="color: #95a5a6;">0%</span></div>
-            <button class="mode-btn" id="toggle-steering-mode" onclick="game.player.toggleSteeringMode()">Asystent Kierownicy: WŁ</button>
-            <button class="mode-btn" id="toggle-winter-mode" onclick="game.player.toggleWinterMode()">Poślizgi Zimowe: WYŁ</button>
-            <button class="mode-btn" id="toggle-music-btn" onclick="game.toggleBackgroundMusic()">Dźwięk: WŁ</button>
+            <button class="mode-btn" id="toggle-steering-mode">Asystent Kierownicy: WŁ</button>
+            <button class="mode-btn" id="toggle-winter-mode">Poślizgi Zimowe: WYŁ</button>
+            <button class="mode-btn" id="toggle-music-btn">Dźwięk: WŁ</button>
         </div>
     </div>
 </div>
@@ -167,6 +167,7 @@
     <canvas id="gameCanvas"></canvas>
 </div>
 
+<!-- OLD INLINE SCRIPT - COMMENTED OUT FOR MODULE TESTING
 <script>
 // --- CONFIGURATION ---
 const CONFIG = {
@@ -2858,6 +2859,7 @@ window.onload = function() {
 };
 
 </script>
+END OF OLD INLINE SCRIPT -->
 <script type="module" src="js/main.js"></script>
 </body>
 </html>

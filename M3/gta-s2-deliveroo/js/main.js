@@ -13,22 +13,85 @@ resizeCanvas();
 
 const input = new InputHandler();
 const game = new Game(canvas, ctx, input);
-window.game = game; // expose for existing inline handlers
+window.game = game; // expose for debugging/console access
 
-game.loadLevel(0);
+// Wire up UI button event listeners
+document.getElementById('toggle-steering-mode').addEventListener('click', () => {
+  game.player.toggleSteeringMode();
+});
 
-let last = performance.now();
-function loop(now) {
-  const dt = (now - last) / 16.6667; // roughly frames
-  last = now;
-  game.update(dt);
+document.getElementById('toggle-winter-mode').addEventListener('click', () => {
+  game.player.toggleWinterMode();
+});
+
+document.getElementById('toggle-music-btn').addEventListener('click', () => {
+  game.toggleBackgroundMusic();
+});
+
+// Handle mouse events for title screen button
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  
+  if (game.state === 'TITLE_SCREEN' && game.titleButtonBounds) {
+    const bounds = game.titleButtonBounds;
+    game.titleButtonHover = mouseX >= bounds.x && mouseX <= bounds.x + bounds.width &&
+                            mouseY >= bounds.y && mouseY <= bounds.y + bounds.height;
+  }
+  
+  if (game.state === 'LEVEL_COMPLETE' && game.levelCompleteButtonBounds) {
+    const bounds = game.levelCompleteButtonBounds;
+    game.levelCompleteButtonHover = mouseX >= bounds.x && mouseX <= bounds.x + bounds.width &&
+                                     mouseY >= bounds.y && mouseY <= bounds.y + bounds.height;
+  }
+});
+
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  
+  if (game.state === 'TITLE_SCREEN' && game.titleButtonBounds) {
+    const bounds = game.titleButtonBounds;
+    if (mouseX >= bounds.x && mouseX <= bounds.x + bounds.width &&
+        mouseY >= bounds.y && mouseY <= bounds.y + bounds.height) {
+      game.startGame();
+    }
+  }
+  
+  if (game.state === 'LEVEL_COMPLETE' && game.levelCompleteButtonBounds) {
+    const bounds = game.levelCompleteButtonBounds;
+    if (mouseX >= bounds.x && mouseX <= bounds.x + bounds.width &&
+        mouseY >= bounds.y && mouseY <= bounds.y + bounds.height) {
+      loadNextLevel();
+    }
+  }
+});
+
+function loadNextLevel() {
+  const nextLevel = game.currentLevelIdx + 1;
+  if (nextLevel < game.levels.length) {
+    game.loadLevel(nextLevel);
+  } else {
+    alert('Gratulacje! Ukończyłeś wszystkie poziomy!');
+    game.loadLevel(0);
+  }
+}
+
+function loop() {
+  game.update();
   game.draw();
   requestAnimationFrame(loop);
 }
 
 requestAnimationFrame(loop);
 
-window.addEventListener('resize', () => {
+function resize() {
   resizeCanvas();
-  game.loadLevel(0);
-});
+  if (game.state === 'RUNNING') {
+    game.loadLevel(game.currentLevelIdx);
+  }
+}
+
+window.addEventListener('resize', resize);
