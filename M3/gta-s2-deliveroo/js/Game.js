@@ -1,10 +1,10 @@
 import PlayerCar from './PlayerCar.js';
-import NpcCar from './NpcCar.js';
-import ObstacleCar from './ObstacleCar.js';
+import { NpcCar } from './NpcCar.js';
+import { ObstacleCar } from './ObstacleCar.js';
 import { Pillar } from './Pillar.js';
 import { ParkingZone } from './ParkingZone.js';
 import { Curb } from './Curb.js';
-import geom from './utils/geom.js';
+import * as geom from './utils/geom.js';
 import { CONFIG } from './config.js';
 
 export default class Game {
@@ -22,16 +22,19 @@ export default class Game {
 
   loadLevel(levelIndex = 0) {
     // create sample obstacles to preserve original behavior
-    this.currentCars = [new ObstacleCar(300, 200), new NpcCar(400, 300)];
+    this.currentCars = [
+      new ObstacleCar({ x: 300, y: 200, angle: 0 }),
+      new NpcCar({ x: 400, y: 300, angle: 0, speed: -2 })
+    ];
     this.curbs = [new Curb(0, this.canvas.height - 50, this.canvas.width, 50)];
-    this.parkingZones = [new ParkingZone(150, 150, 80, 160, 0)];
-    this.pillars = [new Pillar(500, 200, 20)];
+    this.parkingZones = [new ParkingZone({ x: 150, y: 150, w: 80, l: 160, angle: 0 })];
+    this.pillars = [new Pillar(500, 200)];
   }
 
   update(dt) {
     this.player.update(this.input, dt);
     for (const c of this.currentCars) {
-      if (typeof c.update === 'function') c.update(dt);
+      if (typeof c.update === 'function') c.update(this);
     }
   }
 
