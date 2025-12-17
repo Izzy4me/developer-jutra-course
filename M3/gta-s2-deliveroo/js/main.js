@@ -1,5 +1,5 @@
 import Game from './Game.js';
-import InputHandler from './InputHandler.js';
+import { InputHandler } from './InputHandler.js';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');

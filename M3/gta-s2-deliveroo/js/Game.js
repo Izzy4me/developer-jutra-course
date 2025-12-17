@@ -1,9 +1,9 @@
 import PlayerCar from './PlayerCar.js';
 import NpcCar from './NpcCar.js';
 import ObstacleCar from './ObstacleCar.js';
-import Pillar from './Pillar.js';
-import ParkingZone from './ParkingZone.js';
-import Curb from './Curb.js';
+import { Pillar } from './Pillar.js';
+import { ParkingZone } from './ParkingZone.js';
+import { Curb } from './Curb.js';
 import geom from './utils/geom.js';
 import { CONFIG } from './config.js';
 
