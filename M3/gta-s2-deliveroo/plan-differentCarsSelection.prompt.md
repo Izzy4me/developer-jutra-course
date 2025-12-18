@@ -1,7 +1,7 @@
 # Plan: Car Selection Feature Implementation
 
 ## Overview
-Implement a car selection system allowing players to choose between three vehicle types (Compact, Sport, SUV) from the title screen. Each car type will have unique visual and performance characteristics.
+Implement a car selection system allowing players to choose between multiple vehicle types (Compact, Sport, SUV, Truck) from the title screen. Each car type will have unique visual and performance characteristics. The SUV and Truck will have a custom visual appearance.
 
 ## Requirements Summary
 
@@ -20,13 +20,20 @@ Implement a car selection system allowing players to choose between three vehicl
   - More agile physics parameters
 
 - **SUV**
+  - Playable vehicle.
+  - Dark gray color: RGB(46, 48, 52)
+  - Heavier, more powerful but less agile than Sport.
+  - Custom rendering: Features a darker rear section and unique window styling instead of a separate roof.
+
+- **Truck**
   - Not playable - shows alert: "Not implemented now, please buy DLC: Wide and fuel-hungry"
-  - Dark gray color for button preview: RGB(46, 48, 52)
+  - Orange color for button preview: RGB(255, 102, 0)
+  - Custom rendering: Features a separate front cab and a large, darker rear storage area.
 
 ### 2. UI Integration
 - Car selection buttons appear in side panel
 - Visible only on TITLE_SCREEN state
-- Three button group styled consistently with existing UI
+- Four button group styled consistently with existing UI
 - Selection persists across all levels in the game session
 - Cannot change car mid-game
 
@@ -35,6 +42,7 @@ Implement a car selection system allowing players to choose between three vehicl
 - Selection remains active between level transitions
 - Winter mode & steering mode toggles work identically for all cars
 - Sport car defaults to sport acceleration but can toggle to normal mode
+- Text color on the car's roof/back dynamically changes for better visibility against dark or light backgrounds.
 
 ---
 
@@ -51,7 +59,7 @@ export const CAR_CONFIGS = {
         id: 'compact',
         name: 'Compact',
         displayName: 'Compact',
-        color: { r: 52, g: 152, b: 219 }, // Current blue-ish
+        color: { r: 52, g: 152, b: 219 }, // Blue-ish
         dimensions: {
             carWidth: 44,
             carLength: 90,
@@ -61,7 +69,8 @@ export const CAR_CONFIGS = {
             maxSpeed: 18.0,
             maxReverseSpeed: -5.0,
             carMode: 'normal',
-            acceleration: 0.021,
+            accelerationNormal: 0.021,
+            accelerationSport: 0.15,
             friction: 0.06,
             brakingForce: 0.5,
             maxSteerAngle: 0.65,
@@ -75,20 +84,23 @@ export const CAR_CONFIGS = {
         displayName: 'Sport',
         color: { r: 255, g: 40, b: 0 }, // Vibrant red
         dimensions: {
-            carWidth: 38,
-            carLength: 75,
-            wheelBase: 50 // Proportionally smaller
+            carWidth: 40,
+            carLength: 95,
+            wheelBase: 65
         },
         performance: {
-            maxSpeed: 30.0,
-            maxReverseSpeed: -8.0, // Faster reverse too
+            maxSpeed: 28.0,
+            maxReverseSpeed: -8.0, // Faster reverse
             carMode: 'sport',
-            acceleration: 0.15, // Use sport acceleration
+            accelerationNormal: 0.08, // Normal mode for sport car
+            accelerationSport: 0.18, // Higher sport acceleration
             friction: 0.04, // Less friction = more responsive
             brakingForce: 0.65, // Better brakes
-            maxSteerAngle: 0.75, // Sharper steering
-            steerSpeed: 0.045, // Faster steering response
-            tireGrip: 0.90 // Better grip
+            maxSteerAngle: 0.45, // Sharper steering
+            steerSpeed: 0.05, // Faster steering response
+            tireGrip: 1.1, // Better grip
+            angularDamping: 0.96,
+            lateralForceMultiplier: 3.0
         }
     },
     SUV: {
@@ -96,6 +108,50 @@ export const CAR_CONFIGS = {
         name: 'SUV',
         displayName: 'SUV',
         color: { r: 46, g: 48, b: 52 }, // Dark gray
+        dimensions: {
+            carWidth: 50,
+            carLength: 110,
+            wheelBase: 75
+        },
+        performance: {
+            maxSpeed: 16.0,
+            maxReverseSpeed: -4.5,
+            carMode: 'normal',
+            accelerationNormal: 0.018,
+            accelerationSport: 0.025,
+            friction: 0.04,
+            brakingForce: 0.65,
+            maxSteerAngle: 0.55,
+            steerSpeed: 0.025,
+            tireGrip: 0.75,
+            angularDamping: 0.90,
+            lateralForceMultiplier: 1.5
+        }
+    },
+    TRUCK: {
+        id: 'truck',
+        name: 'Truck',
+        displayName: 'Truck',
+        color: { r: 255, g: 102, b: 0 }, // Orange
+        dimensions: {
+            carWidth: 55,
+            carLength: 180,
+            wheelBase: 130
+        },
+        performance: {
+            maxSpeed: 10.0,
+            maxReverseSpeed: -3.0,
+            carMode: 'normal',
+            accelerationNormal: 0.008,
+            accelerationSport: 0.008,
+            friction: 0.04,
+            brakingForce: 0.65,
+            maxSteerAngle: 0.35,
+            steerSpeed: 0.015,
+            tireGrip: 0.60,
+            angularDamping: 0.85,
+            lateralForceMultiplier: 1.0
+        },
         locked: true,
         lockMessage: 'Not implemented now, please buy DLC: Wide and fuel-hungry'
     }
@@ -105,9 +161,9 @@ export const DEFAULT_CAR = 'COMPACT';
 ```
 
 **Notes:**
-- Sport car has proportionally reduced wheelBase (75/90 ≈ 50/60)
-- Sport performance tuned for agility: better steering angles, faster response, higher grip
-- SUV marked as locked with custom message
+- SUV is now playable with its own physics.
+- TRUCK is added but marked as `locked`.
+- Performance parameters for all cars have been tuned.
 
 #### 1.2 Modify CONFIG (`js/config.js`)
 Refactor CONFIG to support dynamic car configuration:
@@ -132,8 +188,6 @@ export const CONFIG = {
     tireGripBraking: 0.65,
     driftThreshold: 2.0,
     driftFriction: 0.98,
-    angularDamping: 0.94,
-    lateralForceMultiplier: 2.0,
     curbSafeSpeed: 1.5,
     steerRestoringDriving: 0.02,
     
@@ -151,6 +205,8 @@ export const CONFIG = {
     maxSteerAngle: 0.65,
     steerSpeed: 0.03,
     tireGrip: 0.85,
+    angularDamping: 0.94,
+    lateralForceMultiplier: 2.0,
     
     get acceleration() { 
         return this.carMode === 'sport' ? this.accelerationSport : this.accelerationNormal; 
@@ -162,15 +218,6 @@ export const CONFIG = {
         
         // Apply performance
         Object.assign(this, carConfig.performance);
-        
-        // Update acceleration values based on carMode
-        if (carConfig.performance.carMode === 'sport') {
-            this.accelerationSport = carConfig.performance.acceleration;
-            this.accelerationNormal = carConfig.performance.acceleration * 0.14; // ~normal ratio
-        } else {
-            this.accelerationNormal = carConfig.performance.acceleration;
-            this.accelerationSport = carConfig.performance.acceleration * 7.14; // Keep sport multiplier
-        }
     }
 };
 ```
@@ -187,10 +234,11 @@ constructor(canvas, ctx, input) {
     // ... existing properties ...
     
     // Car selection state
-    this.selectedCarType = null; // 'COMPACT', 'SPORT', or 'SUV'
+    this.selectedCarType = null; // 'COMPACT', 'SPORT', 'SUV', or 'TRUCK'
     this.carColor = null; // {r, g, b} for rendering
     
     // ... rest of constructor ...
+    this.player = new PlayerCar(0,0,0, null, 'COMPACT');
 }
 ```
 
@@ -200,7 +248,7 @@ constructor(canvas, ctx, input) {
 selectCar(carType) {
     const carConfig = CAR_CONFIGS[carType];
     
-    // Handle locked cars (SUV)
+    // Handle locked cars
     if (carConfig.locked) {
         alert(carConfig.lockMessage);
         return false;
@@ -211,8 +259,10 @@ selectCar(carType) {
     this.carColor = carConfig.color;
     CONFIG.applyCarConfig(carConfig);
     
-    // Reset player car with new config
-    this.player.reset(0, 0, 0);
+    // Update player car with new config, type, and color
+    this.player.carType = carType;
+    this.player.setColor(carConfig.color);
+    this.player.reset(this.player.x, this.player.y, this.player.angle);
     
     return true;
 }
@@ -238,10 +288,11 @@ async startGame() {
 
 #### 2.2 Modify PlayerCar Class (`js/PlayerCar.js`)
 
-**Update constructor to accept color:**
+**Update constructor to accept color and carType:**
 ```javascript
-constructor(x, y, angleDeg, color = null) {
+constructor(x, y, angleDeg, color = null, carType = 'COMPACT') {
     this.color = color || { r: 52, g: 152, b: 219 }; // Default blue
+    this.carType = carType;
     this.reset(x, y, angleDeg);
 }
 
@@ -251,9 +302,7 @@ setColor(color) {
 ```
 
 **Update draw methods:**
-Replace hardcoded color values with `this.color`:
-- In `drawCar()`: Use `rgb(${this.color.r}, ${this.color.g}, ${this.color.b})`
-- Adjust highlight/shadow colors proportionally to maintain visual quality
+Replace hardcoded color values with `this.color` and add conditional rendering based on `this.carType`.
 
 ---
 
@@ -261,7 +310,7 @@ Replace hardcoded color values with `this.color`:
 
 #### 3.1 Update HTML (`index.html`)
 
-Add car selection panel to `#ui-container` (after controls panel, before levels panel):
+Add car selection panel to `#ui-container`:
 
 ```html
 <div class="panel" id="car-selection-panel" style="display: none;">
@@ -278,6 +327,10 @@ Add car selection panel to `#ui-container` (after controls panel, before levels 
         <button class="car-btn" data-car-type="SUV">
             <div class="car-preview" style="background-color: rgb(46, 48, 52);"></div>
             <span>SUV</span>
+        </button>
+        <button class="car-btn" data-car-type="TRUCK">
+            <div class="car-preview" style="background-color: rgb(255, 102, 0);"></div>
+            <span>Truck</span>
         </button>
     </div>
     <div id="car-selection-info" style="margin-top: 10px; font-size: 12px; color: #95a5a6;">
@@ -303,6 +356,7 @@ Add car selection panel to `#ui-container` (after controls panel, before levels 
     transition: all 0.2s;
     text-align: left;
     gap: 12px;
+    pointer-events: auto;
 }
 
 .car-btn:hover {
@@ -364,7 +418,7 @@ drawTitleScreen() {
     
     // Show/hide car selection panel
     const carPanel = document.getElementById('car-selection-panel');
-    carPanel.style.display = 'block';
+    if (carPanel) carPanel.style.display = 'block';
     
     // ... rest of title screen logic ...
 }
@@ -373,8 +427,9 @@ drawTitleScreen() {
 **Update other game states:**
 Ensure car selection panel is hidden during gameplay:
 ```javascript
-// In drawPlaying(), drawLevelComplete(), etc.
-document.getElementById('car-selection-panel').style.display = 'none';
+// In draw(), for states other than TITLE_SCREEN
+const carPanel = document.getElementById('car-selection-panel');
+if (carPanel) carPanel.style.display = 'none';
 ```
 
 ---
@@ -383,27 +438,35 @@ document.getElementById('car-selection-panel').style.display = 'none';
 
 #### 4.1 Update PlayerCar Rendering (`js/PlayerCar.js`)
 
-**Modify `drawCar()` method:**
-- Replace hardcoded color `rgb(52, 152, 219)` with dynamic `rgb(${this.color.r}, ${this.color.g}, ${this.color.b})`
-- Update body color
-- Adjust hood/roof highlights to work with any base color
-- Ensure shadows/outlines remain visible on all colors
+**Modify `draw()` method:**
+- Add conditional logic based on `this.carType` to handle custom drawing for 'SUV' and 'TRUCK'.
+- For 'SUV', draw a darker rear section.
+- For 'TRUCK', draw a separate cab and a darker, larger storage area.
+- For standard cars, draw the lighter roof.
+- Dynamically calculate the text color ('DELIVEROO') based on the brightness of the surface it's drawn on (roof or truck bed) to ensure contrast.
 
-**Example color application:**
+**Example conditional rendering:**
 ```javascript
-// Body - use dynamic color
-ctx.fillStyle = `rgb(${this.color.r}, ${this.color.g}, ${this.color.b})`;
-ctx.fill(bodyPath);
+// In draw() method of PlayerCar.js
 
-// Highlights - lighter version
-const highlightColor = `rgb(${Math.min(255, this.color.r + 40)}, ${Math.min(255, this.color.g + 40)}, ${Math.min(255, this.color.b + 40)})`;
-ctx.fillStyle = highlightColor;
-// ... apply to hood/roof ...
+// --- ROOF & SPECIAL FEATURES ---
+let roofColor = { r: 0, g: 0, b: 0 };
+if (this.carType === 'SUV') {
+    // ... custom SUV drawing logic ...
+} else if (this.carType === 'TRUCK') {
+    // ... custom TRUCK drawing logic ...
+} else {
+    // ... standard car roof drawing logic ...
+}
 
-// Shadows - darker version
-const shadowColor = `rgb(${Math.max(0, this.color.r - 30)}, ${Math.max(0, this.color.g - 30)}, ${Math.max(0, this.color.b - 30)})`;
-ctx.strokeStyle = shadowColor;
-// ... apply to outlines ...
+// Calculate text color based on roof brightness
+const luminance = (0.299 * roofColor.r + 0.587 * roofColor.g + 0.114 * roofColor.b) / 255;
+const textColor = luminance < 0.5 ? '#FFFFFF' : '#000000';
+
+// ... later in draw() ...
+// --- DELIVEROO TEXT ON ROOF ---
+ctx.fillStyle = textColor;
+ctx.fillText('DELIVEROO', 0, 0);
 ```
 
 #### 4.2 Ensure Car Dimensions Update
@@ -421,146 +484,63 @@ Verify that all car rendering uses CONFIG values:
 
 **Updated game start sequence:**
 1. User loads game → Title screen appears
-2. Car selection panel visible with 3 buttons
+2. Car selection panel visible with 4 buttons
 3. User clicks car button → selectCar() called
-4. If locked (SUV) → alert shown, no selection
+4. If locked (TRUCK) → alert shown, no selection
 5. If valid → CONFIG updated, player car reset with new config
 6. User clicks "Start Game" → game begins with selected car
 7. Car persists through all levels until page reload
 
 #### 5.2 State Management Checklist
 
-- [ ] Car selection only visible on TITLE_SCREEN
-- [ ] Selected car persists across level transitions
-- [ ] loadLevel() does not reset car selection
-- [ ] Player car color matches selected car
-- [ ] Player car dimensions match selected car
-- [ ] Performance characteristics apply correctly
-- [ ] Sport car starts with carMode='sport'
-- [ ] Winter/steering toggles work for all cars
+- [x] Car selection only visible on TITLE_SCREEN
+- [x] Selected car persists across level transitions
+- [x] loadLevel() does not reset car selection
+- [x] Player car color matches selected car
+- [x] Player car dimensions match selected car
+- [x] Performance characteristics apply correctly
+- [x] Sport car starts with carMode='sport'
+- [x] Winter/steering toggles work for all cars
+- [x] Custom rendering for SUV and Truck is applied.
+- [x] Text color on roof is dynamic.
 
 #### 5.3 Testing Scenarios
 
 **Test Case 1: Compact Selection**
-- Select Compact → verify blue color
+- Select Compact → verify blue color, standard look
 - Start game → verify standard performance
-- Complete level → verify car stays Compact
-- Check dimensions: 44x90
 
 **Test Case 2: Sport Selection**
-- Select Sport → verify red color
-- Start game → verify faster speed (max 30)
-- Test acceleration → should use sport mode by default
-- Toggle to normal mode → verify slower acceleration
-- Check dimensions: 38x75
-- Verify sharper steering response
+- Select Sport → verify red color, standard look
+- Start game → verify faster speed (max 28)
+- Check dimensions: 40x95
 
-**Test Case 3: SUV Attempt**
-- Click SUV button → verify alert appears
+**Test Case 3: SUV Selection**
+- Select SUV -> verify dark gray color, custom SUV look
+- Start game -> verify heavier performance
+- Check text on back is white.
+
+**Test Case 4: TRUCK Attempt**
+- Click TRUCK button → verify alert appears
 - Alert text: "Not implemented now, please buy DLC: Wide and fuel-hungry"
 - Verify no car selection occurs
-- Start game button → should still require valid car selection
 
-**Test Case 4: Level Persistence**
+**Test Case 5: Level Persistence**
 - Select Sport car
 - Complete Level 1
 - Load Level 2 → verify still Sport car
-- Verify performance hasn't reset to Compact
 
-**Test Case 5: No Selection Protection**
+**Test Case 6: No Selection Protection**
 - Load game, don't select car
 - Try to start game → verify alert "Please select a car first!"
-- Select car → can now start
-
----
-
-## Implementation Order
-
-### Step 1: Foundation (No UI changes yet)
-1. Create `js/carConfigs.js`
-2. Refactor `js/config.js` - add `applyCarConfig()` method
-3. Test: Ensure game still works with default config
-
-### Step 2: Game Logic
-1. Add car selection properties to `Game.js`
-2. Implement `selectCar()` method
-3. Add color property to `PlayerCar.js`
-4. Test: Call selectCar() from console, verify CONFIG updates
-
-### Step 3: Rendering
-1. Update PlayerCar color rendering
-2. Verify dynamic dimensions work
-3. Test: All three car configs render correctly
-
-### Step 4: UI
-1. Add HTML for car selection panel
-2. Add CSS styles
-3. Wire up event handlers in `main.js`
-4. Implement show/hide logic in Game.js states
-5. Test: Full user flow from selection to gameplay
-
-### Step 5: Polish & Testing
-1. Run all test scenarios
-2. Verify alert messages
-3. Check visual consistency across all states
-4. Test level transitions
-5. Validate performance characteristics feel right
-
----
-
-## Files to Modify
-
-### New Files
-- `js/carConfigs.js` - Car configuration data
-
-### Modified Files
-- `js/config.js` - Add applyCarConfig() method, refactor structure
-- `js/Game.js` - Add car selection state and methods
-- `js/PlayerCar.js` - Add color property and dynamic rendering
-- `js/main.js` - Add car selection event handlers
-- `index.html` - Add car selection panel HTML and CSS
-
-### No Changes Needed
-- Level files
-- NpcCar, ObstacleCar, other entities
-- Input handling
-- Audio system
-- Utility functions
-
----
-
-## Potential Issues & Solutions
-
-### Issue 1: Sport car too fast for existing levels
-**Solution:** If maxSpeed=30 makes levels too easy, can adjust:
-- Reduce to 25
-- Increase friction slightly
-- Adjust level parking zone tolerances
-
-### Issue 2: Color rendering looks wrong
-**Solution:** Test each color with:
-- Different lighting conditions (headlights on/off)
-- Brake lights active
-- Various backgrounds
-- Adjust highlight/shadow calculations if needed
-
-### Issue 3: Dimensions cause collision issues
-**Solution:** Sport car is smaller, might fit where Compact couldn't:
-- This is a feature (reward for choosing Sport)
-- If problematic, adjust hitbox separately from visual size
-
-### Issue 4: CarMode toggle confusion
-**Solution:** Update UI to show current mode more clearly:
-- Add indicator showing "Mode: Sport" or "Mode: Normal"
-- Different color for mode button when sport car selected
 
 ---
 
 ## Future Enhancements (Out of Scope)
 
-- [ ] SUV implementation with realistic physics (heavier, slower, worse handling)
-- [ ] Car unlock system (earn SUV through achievements)
-- [ ] More car types (Motorcycle, Truck, Van)
+- [ ] TRUCK implementation with realistic physics (heavier, slower, worse handling)
+- [ ] Car unlock system (earn TRUCK through achievements)
+- [ ] More car types (Motorcycle, Van)
 - [ ] Custom color picker
 - [ ] Performance stats display (0-60, top speed, etc.)
 - [ ] Car-specific sound effects
@@ -576,9 +556,9 @@ This implementation adds a clean, integrated car selection system that:
 - ✅ Allows choice before gameplay starts
 - ✅ Persists across levels
 - ✅ Uses proper architecture (config objects, not hardcoded values)
-- ✅ Maintains existing game mechanics
-- ✅ Provides clear user feedback
-- ✅ Handles locked content gracefully (SUV)
+- ✅ Applies custom visual styles for specific car types (SUV, Truck)
+- ✅ Dynamically adjusts text color for readability
+- ✅ Handles locked content gracefully (TRUCK)
 - ✅ Scales for future car types
 
 The modular approach ensures easy addition of new cars and maintains code quality while providing meaningful gameplay variety.

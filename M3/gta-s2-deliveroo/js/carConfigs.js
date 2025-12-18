@@ -92,7 +92,7 @@ export const CAR_CONFIGS = {
             maxReverseSpeed: -3.0,
             carMode: 'normal',
             accelerationNormal: 0.008,
-            accelerationSport: 0.008, // Truck has no sport mode boost
+            accelerationSport: 0.008, // Truck has no sport mode boost - fast workaround before removing it from selectable options
             friction: 0.04,
             brakingForce: 0.65,
             maxSteerAngle: 0.35,

@@ -7,8 +7,9 @@ import * as geom from './utils/geom.js';
 import * as audio from './utils/audio.js';
 
 export default class PlayerCar {
-    constructor(x, y, angleDeg, color = null) {
+    constructor(x, y, angleDeg, color = null, carType = 'COMPACT') {
         this.color = color || { r: 52, g: 152, b: 219 }; // Default blue
+        this.carType = carType;
         this.reset(x, y, angleDeg);
     }
 
@@ -581,14 +582,61 @@ export default class PlayerCar {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Roof - lighter version of body color
-        const roofR = Math.min(255, this.color.r + 80);
-        const roofG = Math.min(255, this.color.g + 80);
-        const roofB = Math.min(255, this.color.b + 80);
-        ctx.fillStyle = `rgb(${roofR}, ${roofG}, ${roofB})`;
-        ctx.beginPath();
-        ctx.roundRect(-CONFIG.carLength/4, -CONFIG.carWidth/2 + 6, CONFIG.carLength/2, CONFIG.carWidth - 12, 3);
-        ctx.fill();
+        // --- ROOF & SPECIAL FEATURES ---
+        let roofColor = { r: 0, g: 0, b: 0 };
+        if (this.carType === 'SUV') {
+            // SUV: Darker back part, no separate roof
+            const backR = Math.max(0, this.color.r - 50);
+            const backG = Math.max(0, this.color.g - 50);
+            const backB = Math.max(0, this.color.b - 50);
+            roofColor = { r: backR, g: backG, b: backB };
+            ctx.fillStyle = `rgb(${backR}, ${backG}, ${backB})`;
+            ctx.beginPath();
+            ctx.roundRect(-CONFIG.carLength/2, -CONFIG.carWidth/2, CONFIG.carLength/2.5, CONFIG.carWidth, [0, 6, 6, 0]);
+            ctx.fill();
+
+            // Windows for SUV
+            ctx.fillStyle = 'rgba(20, 20, 40, 0.7)';
+            ctx.fillRect(-CONFIG.carLength/2 + 8, -CONFIG.carWidth/2 + 6, CONFIG.carLength - 16, CONFIG.carWidth - 12);
+
+        } else if (this.carType === 'TRUCK') {
+            // TRUCK: Separate cab (front) and storage box (back)
+            // Cab - smaller front section
+            const cabLength = CONFIG.carLength / 3;
+            ctx.fillStyle = `rgb(${this.color.r}, ${this.color.g}, ${this.color.b})`;
+            ctx.beginPath();
+            ctx.roundRect(CONFIG.carLength/2 - cabLength, -CONFIG.carWidth/2, cabLength, CONFIG.carWidth, [6, 0, 0, 6]);
+            ctx.fill();
+
+            // Storage box - larger back section
+            const storageR = Math.max(0, this.color.r - 80); // Darker than cab
+            const storageG = Math.max(0, this.color.g - 80);
+            const storageB = Math.max(0, this.color.b - 80);
+            roofColor = { r: storageR, g: storageG, b: storageB };
+            ctx.fillStyle = `rgb(${storageR}, ${storageG}, ${storageB})`;
+            ctx.beginPath();
+            ctx.roundRect(-CONFIG.carLength/2, -CONFIG.carWidth/2, CONFIG.carLength - cabLength, CONFIG.carWidth, [0, 6, 6, 0]);
+            ctx.fill();
+
+            // Windows for truck cab
+            ctx.fillStyle = 'rgba(20, 20, 40, 0.7)';
+            ctx.fillRect(CONFIG.carLength/2 - cabLength + 4, -CONFIG.carWidth/2 + 6, cabLength - 8, CONFIG.carWidth - 12);
+
+        } else {
+            // Standard Car: Lighter roof
+            const roofR = Math.min(255, this.color.r + 80);
+            const roofG = Math.min(255, this.color.g + 80);
+            const roofB = Math.min(255, this.color.b + 80);
+            roofColor = { r: roofR, g: roofG, b: roofB };
+            ctx.fillStyle = `rgb(${roofR}, ${roofG}, ${roofB})`;
+            ctx.beginPath();
+            ctx.roundRect(-CONFIG.carLength/4, -CONFIG.carWidth/2 + 6, CONFIG.carLength/2, CONFIG.carWidth - 12, 3);
+            ctx.fill();
+        }
+
+        // Calculate text color based on roof brightness
+        const luminance = (0.299 * roofColor.r + 0.587 * roofColor.g + 0.114 * roofColor.b) / 255;
+        const textColor = luminance < 0.5 ? '#FFFFFF' : '#000000';
         
         // Windshield indication (Front)
         ctx.fillStyle = 'rgba(255,255,255,0.3)';
@@ -632,7 +680,7 @@ export default class PlayerCar {
 
         // --- DELIVEROO TEXT ON ROOF ---
         ctx.save();
-        ctx.fillStyle = '#000000'; // Black text
+        ctx.fillStyle = textColor;
         ctx.font = 'bold 12px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';

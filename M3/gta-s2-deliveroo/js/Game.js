@@ -26,7 +26,7 @@ class Game {
         this.currentLevelIdx = 0;
         this.state = 'TITLE_SCREEN'; 
         this.bonkPos = {x:0, y:0};
-        this.player = new PlayerCar(0,0,0);
+        this.player = new PlayerCar(0,0,0, null, 'COMPACT');
         this.currentCars = [];
         this.currentObstacles = [];
         this.currentCurbs = [];
@@ -34,7 +34,7 @@ class Game {
         this.isMusicOn = true;
         
         // Car selection state
-        this.selectedCarType = null; // 'COMPACT', 'SPORT', or 'SUV'
+        this.selectedCarType = null; // 'COMPACT', 'SPORT', 'SUV', 'TRUCK
         this.carColor = null; // {r, g, b} for rendering
         
         // Title screen animation
@@ -99,8 +99,9 @@ class Game {
         CONFIG.applyCarConfig(carConfig);
         
         // Update player car with new config and color
+        this.player.carType = carType;
         this.player.setColor(carConfig.color);
-        this.player.reset(0, 0, 0);
+        this.player.reset(this.player.x || 0, this.player.y || 0, this.player.angle || 0);
         
         console.log('Car selected successfully:', carType);
         return true;
