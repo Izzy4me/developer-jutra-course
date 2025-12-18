@@ -296,24 +296,32 @@ class Game {
         }
     }
 
-    checkParking() {
+   checkParking() {
         // Car must be moving very slowly to be considered parked.
         if (Math.abs(this.player.speed) > 0.1) return;
 
         for (let zone of this.currentParkingZones) {
-            // 1. Check if all 4 corners of the car are inside the parking zone
             const carCorners = geom.getCorners(this.player.x, this.player.y, this.player.w, this.player.l, this.player.angle);
-            let allCornersIn = true;
-            for (const corner of carCorners) {
-                if (!geom.isPointInRotatedRect(corner, zone)) {
-                    allCornersIn = false;
-                    break;
-                }
-            }
+            const allCornersIn = carCorners.every(corner => geom.isPointInRotatedRect(corner, zone));
 
             if (allCornersIn) {
-                this.triggerLevelComplete();
-                return;
+                // Check if reverse parking is required for this zone
+                if (zone.parkingType === 'reverse') {
+                    const zoneAngle = zone.angle || 0;
+                    // Calculate normalized angle difference in range [-PI, PI]
+                    const angleDiff = Math.atan2(Math.sin(this.player.angle - zoneAngle), Math.cos(this.player.angle - zoneAngle));
+                    
+                    // Check if the car is facing the opposite direction (diff is close to PI or -PI)
+                    // Tolerance of ~23 degrees (0.4 radians)
+                    if (Math.abs(angleDiff) > Math.PI - 0.4) {
+                        this.triggerLevelComplete();
+                        return;
+                    }
+                } else {
+                    // Normal parking - just complete if all corners are in
+                    this.triggerLevelComplete();
+                    return;
+                }
             }
         }
     }
