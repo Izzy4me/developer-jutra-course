@@ -11,6 +11,7 @@ import { Curb } from './Curb.js';
 import * as geom from './utils/geom.js';
 import * as audio from './utils/audio.js';
 import { CONFIG } from './config.js';
+import { CAR_CONFIGS } from './carConfigs.js';
 import levelFiles from './levels/index.js';
 
 export default 
@@ -31,6 +32,10 @@ class Game {
         this.currentCurbs = [];
         this.currentParkingZones = [];
         this.isMusicOn = true;
+        
+        // Car selection state
+        this.selectedCarType = null; // 'COMPACT', 'SPORT', or 'SUV'
+        this.carColor = null; // {r, g, b} for rendering
         
         // Title screen animation
         this.titleTime = 0;
@@ -72,7 +77,50 @@ class Game {
         }
     }
 
+    /**
+     * Select a car type and apply its configuration
+     * @param {string} carType - 'COMPACT', 'SPORT', or 'SUV'
+     * @returns {boolean} - true if selection successful, false if locked
+     */
+    selectCar(carType) {
+        console.log('selectCar called with:', carType);
+        const carConfig = CAR_CONFIGS[carType];
+        console.log('carConfig:', carConfig);
+        
+        // Handle locked cars (SUV)
+        if (carConfig.locked) {
+            alert(carConfig.lockMessage);
+            return false;
+        }
+        
+        // Apply configuration
+        this.selectedCarType = carType;
+        this.carColor = carConfig.color;
+        CONFIG.applyCarConfig(carConfig);
+        
+        // Update player car with new config and color
+        this.player.setColor(carConfig.color);
+        this.player.reset(0, 0, 0);
+        
+        console.log('Car selected successfully:', carType);
+        return true;
+    }
+
+    /**
+     * Get the currently selected car configuration
+     * @returns {Object|null} - Car config object or null if none selected
+     */
+    getSelectedCarConfig() {
+        return this.selectedCarType ? CAR_CONFIGS[this.selectedCarType] : null;
+    }
+
     async startGame() {
+        // Ensure car is selected before starting
+        if (!this.selectedCarType) {
+            alert('Proszę najpierw wybrać samochód!');
+            return;
+        }
+        
         this.state = 'LOADING';
         await this.loadLevel(this.currentLevelIdx);
     }
@@ -334,6 +382,10 @@ class Game {
             this.ctx.restore();
             return;
         }
+
+        // Hide car selection panel during gameplay
+        const carPanel = document.getElementById('car-selection-panel');
+        if (carPanel) carPanel.style.display = 'none';
 
         // Environment - guard against missing this.level
         const levelType = (this.level && this.level.type) ? this.level.type : 'street';
@@ -708,9 +760,17 @@ class Game {
         this.ctx.font = '12px Arial, sans-serif';
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
         this.ctx.fillText('© 1993 WARSZAFKA STUDIOS', this.canvas.width / 2, this.canvas.height - 30);
+        
+        // Show car selection panel on title screen
+        const carPanel = document.getElementById('car-selection-panel');
+        if (carPanel) carPanel.style.display = 'block';
     }
 
     drawLevelCompleteScreen() {
+        // Hide car selection panel during level complete
+        const carPanel = document.getElementById('car-selection-panel');
+        if (carPanel) carPanel.style.display = 'none';
+        
         // 90s Style Level Complete Screen
         this.levelCompleteTime += 0.016;
         

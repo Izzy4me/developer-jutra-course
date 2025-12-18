@@ -7,7 +7,8 @@ import * as geom from './utils/geom.js';
 import * as audio from './utils/audio.js';
 
 export default class PlayerCar {
-    constructor(x, y, angleDeg) {
+    constructor(x, y, angleDeg, color = null) {
+        this.color = color || { r: 52, g: 152, b: 219 }; // Default blue
         this.reset(x, y, angleDeg);
     }
 
@@ -72,6 +73,14 @@ export default class PlayerCar {
                 audio.stopDriftSound();
             }
         }
+    }
+
+    /**
+     * Set the car color
+     * @param {Object} color - Color object with r, g, b properties
+     */
+    setColor(color) {
+        this.color = color;
     }
 
     update(input) {
@@ -560,16 +569,23 @@ export default class PlayerCar {
         this.drawWheel(ctx, CONFIG.wheelBase/2, wheelTopY_R, this.steeringAngle);
 
         // --- BODY ---
-        ctx.fillStyle = '#3498db';
+        ctx.fillStyle = `rgb(${this.color.r}, ${this.color.g}, ${this.color.b})`;
         ctx.beginPath();
         ctx.roundRect(-CONFIG.carLength/2, -CONFIG.carWidth/2, CONFIG.carLength, CONFIG.carWidth, 6);
         ctx.fill();
-        ctx.strokeStyle = '#2980b9';
+        // Darker outline
+        const outlineR = Math.max(0, this.color.r - 30);
+        const outlineG = Math.max(0, this.color.g - 30);
+        const outlineB = Math.max(0, this.color.b - 30);
+        ctx.strokeStyle = `rgb(${outlineR}, ${outlineG}, ${outlineB})`;
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Roof
-        ctx.fillStyle = '#85c1e9';
+        // Roof - lighter version of body color
+        const roofR = Math.min(255, this.color.r + 80);
+        const roofG = Math.min(255, this.color.g + 80);
+        const roofB = Math.min(255, this.color.b + 80);
+        ctx.fillStyle = `rgb(${roofR}, ${roofG}, ${roofB})`;
         ctx.beginPath();
         ctx.roundRect(-CONFIG.carLength/4, -CONFIG.carWidth/2 + 6, CONFIG.carLength/2, CONFIG.carWidth - 12, 3);
         ctx.fill();
