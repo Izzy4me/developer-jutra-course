@@ -32,6 +32,7 @@ class Game {
         this.currentCurbs = [];
         this.currentParkingZones = [];
         this.isMusicOn = true;
+        this.parkingScore = 0; // 0-100% parking accuracy score
         
         // Car selection state
         this.selectedCarType = null; // 'COMPACT', 'SPORT', 'SUV', 'TRUCK
@@ -168,6 +169,7 @@ class Game {
             this.currentCurbs = ld.curbs || [];
             this.currentParkingZones = ld.parkingZones || [];
             this.level = ld; // Store current level data
+            this.parkingScore = 0; // Reset parking score for new level
             
             this.state = 'RUNNING';
             this.shakeTimer = 0;
@@ -296,6 +298,100 @@ class Game {
         }
     }
 
+    /**
+     * Calculate parking score based on industry-standard metrics:
+     * - Lateral centering (50% weight) - Most critical for door opening
+     * - Longitudinal centering (20% weight) - Space efficiency
+     * - Angular alignment (20% weight) - Parallel parking accuracy
+     * - Margin from edges (10% weight) - Safety buffer
+     * @param {Object} zone - The parking zone object
+     * @returns {number} - Score from 0-100
+     */
+    calculateParkingScore(zone) {
+        // 1. Lateral centering (perpendicular to zone orientation)
+        // This is the most important - ensures doors can open
+        const zoneCenterX = zone.x;
+        const zoneCenterY = zone.y;
+        const carCenterX = this.player.x;
+        const carCenterY = this.player.y;
+        
+        // Calculate distance from zone center
+        const dx = carCenterX - zoneCenterX;
+        const dy = carCenterY - zoneCenterY;
+        
+        // Rotate the difference vector to align with zone's local coordinate system
+        const zoneAngle = zone.angle || 0;
+        const cosAngle = Math.cos(-zoneAngle);
+        const sinAngle = Math.sin(-zoneAngle);
+        const localX = dx * cosAngle - dy * sinAngle; // Longitudinal offset
+        const localY = dx * sinAngle + dy * cosAngle; // Lateral offset
+        
+        // Calculate lateral centering score (50% weight)
+        // Perfect centering = 100%, touching edge = 0%
+        const maxLateralOffset = zone.w / 2 - this.player.w / 2; // Max distance before touching edge
+        const lateralOffset = Math.abs(localY);
+        const lateralScore = Math.max(0, 100 * (1 - lateralOffset / maxLateralOffset));
+        
+        // 2. Longitudinal centering score (20% weight)
+        const maxLongitudinalOffset = zone.l / 2 - this.player.l / 2;
+        const longitudinalOffset = Math.abs(localX);
+        const longitudinalScore = Math.max(0, 100 * (1 - longitudinalOffset / maxLongitudinalOffset));
+        
+        // 3. Angular alignment score (20% weight)
+        // Check how parallel the car is to the parking zone
+        let targetAngle = zoneAngle;
+        if (zone.parkingType === 'reverse') {
+            // For reverse parking, target angle is 180° opposite
+            targetAngle = zoneAngle + Math.PI;
+        }
+        
+        const angleDiff = Math.atan2(
+            Math.sin(this.player.angle - targetAngle),
+            Math.cos(this.player.angle - targetAngle)
+        );
+        const angleDiffDegrees = Math.abs(angleDiff * 180 / Math.PI);
+        // Perfect alignment = 100%, 15° off = 0%
+        const angularScore = Math.max(0, 100 * (1 - angleDiffDegrees / 15));
+        
+        // 4. Margin from edges (10% weight)
+        // Reward having safety buffer from all edges
+        const carCorners = geom.getCorners(this.player.x, this.player.y, this.player.w, this.player.l, this.player.angle);
+        const zoneCorners = geom.getCorners(zone.x, zone.y, zone.w, zone.l, zone.angle || 0);
+        
+        // Calculate minimum distance from car edges to zone edges
+        let minMarginScore = 100;
+        carCorners.forEach(carCorner => {
+            // Transform car corner to zone's local space
+            const cdx = carCorner.x - zone.x;
+            const cdy = carCorner.y - zone.y;
+            const localCornerX = cdx * cosAngle - cdy * sinAngle;
+            const localCornerY = cdx * sinAngle + cdy * cosAngle;
+            
+            // Distance from edges (in zone's local space)
+            const distFromLeftEdge = Math.abs(localCornerY + zone.w / 2);
+            const distFromRightEdge = Math.abs(localCornerY - zone.w / 2);
+            const distFromTopEdge = Math.abs(localCornerX + zone.l / 2);
+            const distFromBottomEdge = Math.abs(localCornerX - zone.l / 2);
+            
+            const minDist = Math.min(distFromLeftEdge, distFromRightEdge, distFromTopEdge, distFromBottomEdge);
+            
+            // Ideal margin is ~10 pixels, anything less reduces score
+            const idealMargin = 10;
+            const marginRatio = Math.min(minDist / idealMargin, 1);
+            minMarginScore = Math.min(minMarginScore, marginRatio * 100);
+        });
+        
+        // Weighted final score
+        const finalScore = (
+            lateralScore * 0.50 +
+            longitudinalScore * 0.20 +
+            angularScore * 0.20 +
+            minMarginScore * 0.10
+        );
+        
+        return Math.round(finalScore);
+    }
+
    checkParking() {
         // Car must be moving very slowly to be considered parked.
         if (Math.abs(this.player.speed) > 0.1) return;
@@ -314,11 +410,14 @@ class Game {
                     // Check if the car is facing the opposite direction (diff is close to PI or -PI)
                     // Tolerance of ~23 degrees (0.4 radians)
                     if (Math.abs(angleDiff) > Math.PI - 0.4) {
+                        // Calculate parking score before completing level
+                        this.parkingScore = this.calculateParkingScore(zone);
                         this.triggerLevelComplete();
                         return;
                     }
                 } else {
-                    // Normal parking - just complete if all corners are in
+                    // Normal parking - calculate score before completing
+                    this.parkingScore = this.calculateParkingScore(zone);
                     this.triggerLevelComplete();
                     return;
                 }
@@ -465,7 +564,7 @@ class Game {
         // "PARKING" Text
         this.ctx.save();
         this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
-        this.ctx.font = "bold 80px Arial";
+        this.ctx.font = "bold 55px Arial";
         this.ctx.textAlign = "center";
         this.ctx.fillText("PARKING", this.canvas.width/2, 130);
         this.ctx.restore();
@@ -865,6 +964,73 @@ class Game {
         this.ctx.strokeStyle = '#000';
         this.ctx.lineWidth = 3;
         this.ctx.strokeText('Poziom ukończony!', this.canvas.width / 2, subtitleY);
+        
+        // Parking Score Display
+        const scoreY = subtitleY + 60;
+        this.ctx.font = 'bold 28px Arial, sans-serif';
+        
+        // Determine score color based on quality
+        let scoreColor;
+        let scoreLabel;
+        if (this.parkingScore >= 95) {
+            scoreColor = '#00ff00'; // Perfect - Green
+            scoreLabel = 'PERFEKCYJNIE!';
+        } else if (this.parkingScore >= 85) {
+            scoreColor = '#7fff00'; // Excellent - Light Green
+            scoreLabel = 'ŚWIETNIE!';
+        } else if (this.parkingScore >= 75) {
+            scoreColor = '#ffff00'; // Good - Yellow
+            scoreLabel = 'DOBRZE!';
+        } else if (this.parkingScore >= 60) {
+            scoreColor = '#ffa500'; // Fair - Orange
+            scoreLabel = 'CAŁKIEM NIEŹLE';
+        } else {
+            scoreColor = '#ff6b6b'; // Poor - Red
+            scoreLabel = 'DO POPRAWY...';
+        }
+        
+        // Score label shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.fillText('Dokładność parkowania:', this.canvas.width / 2 + 2, scoreY + 2);
+        
+        // Score label
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillText('Dokładność parkowania:', this.canvas.width / 2, scoreY);
+        
+        this.ctx.strokeStyle = '#000';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeText('Dokładność parkowania:', this.canvas.width / 2, scoreY);
+        
+        // Score value with animated color
+        const scoreValueY = scoreY + 50;
+        this.ctx.font = 'bold 48px Arial, sans-serif';
+        
+        // Score shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.fillText(`${this.parkingScore}%`, this.canvas.width / 2 + 3, scoreValueY + 3);
+        
+        // Score with color
+        this.ctx.fillStyle = scoreColor;
+        this.ctx.fillText(`${this.parkingScore}%`, this.canvas.width / 2, scoreValueY);
+        
+        this.ctx.strokeStyle = '#000';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeText(`${this.parkingScore}%`, this.canvas.width / 2, scoreValueY);
+        
+        // Score quality label
+        const qualityY = scoreValueY + 50;
+        this.ctx.font = 'bold 20px Arial, sans-serif';
+        
+        // Quality shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.fillText(scoreLabel, this.canvas.width / 2 + 2, qualityY + 2);
+        
+        // Quality label with pulsing effect
+        const qualityPulse = Math.sin(this.levelCompleteTime * 4) * 0.3 + 0.7;
+        this.ctx.fillStyle = scoreColor;
+        this.ctx.globalAlpha = qualityPulse;
+        this.ctx.fillText(scoreLabel, this.canvas.width / 2, qualityY);
+        this.ctx.globalAlpha = 1;
         
         // "NASTĘPNY POZIOM" Button (90s style)
         const buttonWidth = 320;
