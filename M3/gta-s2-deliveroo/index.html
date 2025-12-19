@@ -79,9 +79,11 @@
         }
 
         .level-btn {
-            display: block;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             width: 100%;
-            padding: 8px;
+            padding: 8px 12px;
             margin-bottom: 5px;
             background: #34495e;
             border: none;
@@ -93,7 +95,38 @@
         }
 
         .level-btn:hover { background: #2980b9; }
-        .level-btn.active { background: #27ae60; font-weight: bold; }
+        .level-btn.active { 
+            background: #e74c3c; 
+            font-weight: bold; 
+        }
+
+        .level-btn.completed {
+            background: #27ae60; /* Green tint for completed levels */
+        }
+
+        .level-btn.completed:hover {
+            background: #2ecc71;
+        }
+
+        .level-number {
+            font-size: 14px;
+            flex: 1;
+        }
+
+        .level-badge {
+            font-size: 11px;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 6px;
+            border-radius: 3px;
+            white-space: nowrap;
+            font-family: monospace;
+        }
+
+        /* Medal-specific styling (optional enhancement) */
+        .level-btn.gold .level-badge { background: rgba(255, 215, 0, 0.3); }
+        .level-btn.silver .level-badge { background: rgba(192, 192, 192, 0.3); }
+        .level-btn.bronze .level-badge { background: rgba(205, 127, 50, 0.3); }
+
 
         #levels-container {
             max-height: 180px;

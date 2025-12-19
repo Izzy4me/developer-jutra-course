@@ -13,6 +13,7 @@ import * as audio from './utils/audio.js';
 import { CONFIG } from './config.js';
 import { CAR_CONFIGS } from './carConfigs.js';
 import levelFiles from './levels/index.js';
+import { ScoreHistory } from './ScoreHistory.js';
 
 export default 
 class Game {
@@ -37,8 +38,14 @@ class Game {
         this.requireManualBrakeToPark = false; // Manual parking brake requirement (default: OFF)
         this.showParkingHint = false; // Show hint when player is in zone but brake not applied
         
+        // Score history tracking
+        this.scoreHistory = new ScoreHistory();
+        this.levelAttempts = 0; // Counter for current level attempts
+        this.isNewPersonalBest = false; // Flag for level complete screen
+        this.previousBestScore = null; // For comparison display
+        
         // Car selection state
-        this.selectedCarType = null; // 'COMPACT', 'SPORT', 'SUV', 'TRUCK
+        this.selectedCarType = 'COMPACT'; // Default to COMPACT to prevent null scores
         this.carColor = null; // {r, g, b} for rendering
         
         // Title screen animation
@@ -62,7 +69,40 @@ class Game {
         for (let i = 0; i < this.levelCount; i++) {
             const btn = document.createElement('button');
             btn.className = 'level-btn';
-            btn.innerText = `Poziom ${i + 1}`; // Levels now will be hidden until loaded
+            
+            // Check if this level has a best score
+            const bestScore = this.scoreHistory.getBestScore(i + 1);
+            
+            if (bestScore) {
+                // Level completed - show badge with score and medal
+                const scorePercent = bestScore.score.toFixed(1);
+                const carTypeShort = this.getCarTypeShortName(bestScore.carType);
+                const medal = this.getMedalForScore(bestScore.score);
+                
+                btn.innerHTML = `
+                    <span class="level-number">Poziom ${i + 1}</span>
+                    <span class="level-badge">${medal} ${scorePercent}% (${carTypeShort})</span>
+                `;
+                btn.classList.add('completed'); // Add CSS class for styling
+                
+                // Add medal-specific class for optional styling
+                if (bestScore.score >= 85) {
+                    btn.classList.add('gold');
+                } else if (bestScore.score > 67) {
+                    btn.classList.add('silver');
+                } else if (bestScore.score >= 50) {
+                    btn.classList.add('bronze');
+                }
+            } else {
+                // Not completed yet - just level number
+                btn.innerHTML = `<span class="level-number">Poziom ${i + 1}</span>`;
+            }
+            
+            // Highlight current level
+            if (i === this.currentLevelIdx) {
+                btn.classList.add('active');
+            }
+            
             btn.onclick = () => this.loadLevel(i);
             container.appendChild(btn);
         }
@@ -87,6 +127,33 @@ class Game {
         if (btn) {
             btn.innerText = `Hamulec Ręczny Wymagany: ${this.requireManualBrakeToPark ? 'WŁ' : 'WYŁ'}`;
         }
+    }
+
+    /**
+     * Get short name for car type (for badge display)
+     * @param {string} carType - 'COMPACT', 'SPORT', 'SUV', 'TRUCK'
+     * @returns {string} Short car type name
+     */
+    getCarTypeShortName(carType) {
+        const names = {
+            'COMPACT': 'CMP',
+            'SPORT': 'SPT',
+            'SUV': 'SUV',
+            'TRUCK': 'TRK'
+        };
+        return names[carType] || carType;
+    }
+
+    /**
+     * Get medal emoji based on score
+     * @param {number} score - Parking score (0-100)
+     * @returns {string} Medal emoji
+     */
+    getMedalForScore(score) {
+        if (score >= 85) return '🥇'; // Gold
+        if (score > 67) return '🥈';  // Silver (>67 and <85)
+        if (score >= 50) return '🥉'; // Bronze (50-67)
+        return '⭐'; // Star for scores below 50%
     }
 
     /**
@@ -143,6 +210,15 @@ class Game {
             alert('Gratulacje! Ukończyłeś wszystkie poziomy!');
             idx = 0;
         }
+        
+        // If switching to a different level, reset attempts
+        if (idx !== this.currentLevelIdx) {
+            this.levelAttempts = 0;
+        }
+        
+        // Increment attempts counter for this load
+        this.levelAttempts++;
+        
         this.currentLevelIdx = idx;
 
         try {
@@ -158,10 +234,21 @@ class Game {
                 Curb
             });
 
-            // Update button text with the actual level name
+            // Update button with the actual level name (preserve badge if exists)
             const btn = document.querySelector(`#levels-container .level-btn:nth-child(${idx + 1})`);
             if (btn) {
-                btn.innerText = `${idx + 1}. ${ld.name}`;
+                const bestScore = this.scoreHistory.getBestScore(idx + 1);
+                
+                if (bestScore) {
+                    // Keep the badge, just update the level name in the number span
+                    const levelNumberSpan = btn.querySelector('.level-number');
+                    if (levelNumberSpan) {
+                        levelNumberSpan.textContent = `${idx + 1}. ${ld.name}`;
+                    }
+                } else {
+                    // No badge yet, just set the level name
+                    btn.innerHTML = `<span class="level-number">${idx + 1}. ${ld.name}</span>`;
+                }
             }
 
             // Handle vehicle requirements (e.g., TRUCK demo level)
@@ -499,6 +586,30 @@ class Game {
         // Initialize level complete animation
         this.levelCompleteTime = 0;
         this.levelCompleteButtonHover = false;
+
+        // Get previous best score before saving (for comparison)
+        const levelNumber = this.currentLevelIdx + 1; // Convert 0-indexed to 1-indexed
+        const previousBest = this.scoreHistory.getBestScore(levelNumber);
+        
+        // Save score to history
+        const levelName = this.level?.name || `Poziom ${levelNumber}`;
+        const isNewBest = this.scoreHistory.recordScore(
+            levelNumber,
+            this.parkingScore,
+            this.selectedCarType,
+            this.levelAttempts,
+            levelName
+        );
+        
+        // Store flags and data for display in level complete screen
+        this.isNewPersonalBest = isNewBest;
+        this.previousBestScore = previousBest ? previousBest.score : null;
+        
+        // Reset attempts counter for next level
+        this.levelAttempts = 0;
+        
+        // Refresh level buttons to show new best score
+        this.populateLevelButtons();
 
         const music = document.getElementById('background-music');
         if (music) music.pause();
@@ -1005,22 +1116,37 @@ class Game {
         this.ctx.lineWidth = 4;
         this.ctx.strokeText('GRATULACJE!', this.canvas.width / 2, centerY + bounce);
         
-        // "Poziom ukończony!" subtitle
+        // Subtitle: "NEW BEST!" if beating record, or "Poziom ukończony!" if first time
         this.ctx.font = 'bold 32px Arial, sans-serif';
         const subtitleY = centerY + 70;
         
+        let subtitleText = 'Poziom ukończony!';
+        let subtitleColor = null; // null = use pulsing color
+        
+        if (this.isNewPersonalBest && this.previousBestScore !== null) {
+            // Beating existing record - show NEW BEST!
+            subtitleText = '🏆 NEW BEST! 🏆';
+            subtitleColor = '#ffd700'; // Golden color
+        }
+        
         // Shadow
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        this.ctx.fillText('Poziom ukończony!', this.canvas.width / 2 + 2, subtitleY + 2);
+        this.ctx.fillText(subtitleText, this.canvas.width / 2 + 2, subtitleY + 2);
         
-        // Subtitle with pulsing color
-        const pulseColor = Math.sin(this.levelCompleteTime * 5) * 127 + 128;
-        this.ctx.fillStyle = `rgb(${pulseColor}, 255, ${255 - pulseColor})`;
-        this.ctx.fillText('Poziom ukończony!', this.canvas.width / 2, subtitleY);
+        // Subtitle with color
+        if (subtitleColor) {
+            // Fixed color for NEW BEST
+            this.ctx.fillStyle = subtitleColor;
+        } else {
+            // Pulsing color for level complete
+            const pulseColor = Math.sin(this.levelCompleteTime * 5) * 127 + 128;
+            this.ctx.fillStyle = `rgb(${pulseColor}, 255, ${255 - pulseColor})`;
+        }
+        this.ctx.fillText(subtitleText, this.canvas.width / 2, subtitleY);
         
         this.ctx.strokeStyle = '#000';
         this.ctx.lineWidth = 3;
-        this.ctx.strokeText('Poziom ukończony!', this.canvas.width / 2, subtitleY);
+        this.ctx.strokeText(subtitleText, this.canvas.width / 2, subtitleY);
         
         // Parking Score Display
         const scoreY = subtitleY + 60;
@@ -1088,6 +1214,19 @@ class Game {
         this.ctx.globalAlpha = qualityPulse;
         this.ctx.fillText(scoreLabel, this.canvas.width / 2, qualityY);
         this.ctx.globalAlpha = 1;
+        
+        // Show "NEW BEST!" banner if this was a personal record (STRETCH GOAL - Phase 1.5)
+        if (this.isNewPersonalBest && this.previousBestScore !== null) {
+            // Only show if we beat an existing record (not first completion)
+            const deltaY = qualityY + 40;
+            const previousText = `Previous best: ${this.previousBestScore.toFixed(1)}%`;
+            
+            this.ctx.font = '20px Arial, sans-serif';
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            this.ctx.fillText(previousText, this.canvas.width / 2 + 1, deltaY + 1);
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.fillText(previousText, this.canvas.width / 2, deltaY);
+        }
         
         // "NASTĘPNY POZIOM" Button (90s style)
         const buttonWidth = 320;
