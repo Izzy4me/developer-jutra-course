@@ -34,6 +34,8 @@ class Game {
         this.isMusicOn = true;
         this.parkingScore = 0; // 0-100% parking accuracy score
         this.shouldRelockTruck = false; // Track if TRUCK needs to be re-locked
+        this.requireManualBrakeToPark = false; // Manual parking brake requirement (default: OFF)
+        this.showParkingHint = false; // Show hint when player is in zone but brake not applied
         
         // Car selection state
         this.selectedCarType = null; // 'COMPACT', 'SPORT', 'SUV', 'TRUCK
@@ -76,6 +78,14 @@ class Game {
         } else {
             music.pause();
             btn.innerText = 'Dźwięk: WYŁ';
+        }
+    }
+
+    toggleManualBrakeRequirement() {
+        this.requireManualBrakeToPark = !this.requireManualBrakeToPark;
+        const btn = document.getElementById('toggle-manual-brake');
+        if (btn) {
+            btn.innerText = `Hamulec Ręczny Wymagany: ${this.requireManualBrakeToPark ? 'WŁ' : 'WYŁ'}`;
         }
     }
 
@@ -199,6 +209,7 @@ class Game {
             
             document.getElementById('toggle-steering-mode').innerText = `Asystent Kierownicy: ${this.player.steeringMode === 'DRIVING' ? 'WŁ' : 'WYŁ'}`;
             document.getElementById('toggle-winter-mode').innerText = `Poślizgi Zimowe: ${this.player.winterMode ? 'WŁ' : 'WYŁ'}`;
+            document.getElementById('toggle-manual-brake').innerText = `Hamulec Ręczny Wymagany: ${this.requireManualBrakeToPark ? 'WŁ' : 'WYŁ'}`;
 
             const levelButtons = document.querySelectorAll('#levels-container .level-btn');
             levelButtons.forEach((btn, i) => btn.classList.toggle('active', i === idx));
@@ -417,7 +428,10 @@ class Game {
 
    checkParking() {
         // Car must be moving very slowly to be considered parked.
-        if (Math.abs(this.player.speed) > 0.1) return;
+        if (Math.abs(this.player.speed) > 0.1) {
+            this.showParkingHint = false;
+            return;
+        }
 
         for (let zone of this.currentParkingZones) {
             const carCorners = geom.getCorners(this.player.x, this.player.y, this.player.w, this.player.l, this.player.angle);
@@ -433,19 +447,34 @@ class Game {
                     // Check if the car is facing the opposite direction (diff is close to PI or -PI)
                     // Tolerance of ~23 degrees (0.4 radians)
                     if (Math.abs(angleDiff) > Math.PI - 0.4) {
+                        // Check if manual brake is required
+                        if (this.requireManualBrakeToPark && !this.input.keys['Space']) {
+                            this.showParkingHint = true;
+                            return;
+                        }
                         // Calculate parking score before completing level
+                        this.showParkingHint = false;
                         this.parkingScore = this.calculateParkingScore(zone);
                         this.triggerLevelComplete();
                         return;
                     }
                 } else {
-                    // Normal parking - calculate score before completing
+                    // Normal parking - check brake requirement
+                    if (this.requireManualBrakeToPark && !this.input.keys['Space']) {
+                        this.showParkingHint = true;
+                        return;
+                    }
+                    // Calculate score before completing
+                    this.showParkingHint = false;
                     this.parkingScore = this.calculateParkingScore(zone);
                     this.triggerLevelComplete();
                     return;
                 }
             }
         }
+        
+        // Not in any parking zone
+        this.showParkingHint = false;
     }
 
     triggerGameOver() {
@@ -543,6 +572,11 @@ class Game {
         // Rysuj ślady opon przed samochodem gracza
         this.player.drawSkidMarks(this.ctx);
         this.player.draw(this.ctx);
+
+        // Parking hint (when manual brake required)
+        if (this.showParkingHint && this.requireManualBrakeToPark) {
+            this.drawParkingHint();
+        }
 
         // Bonk
         if (this.state === 'GAMEOVER') {
@@ -1147,5 +1181,38 @@ class Game {
         this.ctx.fillText("BONK!", 0, 0);
         
         this.ctx.restore();
+    }
+
+    drawParkingHint() {
+        // Draw hint message when player is in parking zone but hasn't applied brake
+        const hintY = this.canvas.height - 150;
+        
+        // Semi-transparent background box
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        this.ctx.fillRect(0, hintY - 30, this.canvas.width, 60);
+        
+        // Border
+        this.ctx.strokeStyle = '#f39c12';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(0, hintY - 30, this.canvas.width, 60);
+        
+        // Hint text
+        this.ctx.font = 'bold 20px Arial, sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        
+        // Text shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        this.ctx.fillText('Zaciągnij hamulec ręczny, aby zakończyć parkowanie', this.canvas.width / 2 + 2, hintY + 2);
+        
+        // Main text (pulsing effect)
+        const pulse = Math.sin(Date.now() * 0.005) * 0.3 + 0.7;
+        this.ctx.fillStyle = `rgba(243, 156, 18, ${pulse})`;
+        this.ctx.fillText('Zaciągnij hamulec ręczny, aby zakończyć parkowanie', this.canvas.width / 2, hintY);
+        
+        // SPACE key icon
+        this.ctx.font = 'bold 16px monospace';
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillText('(SPACJA)', this.canvas.width / 2, hintY + 25);
     }
 }

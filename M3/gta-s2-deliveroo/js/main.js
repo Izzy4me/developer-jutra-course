@@ -28,6 +28,12 @@ document.getElementById('toggle-music-btn').addEventListener('click', () => {
   game.toggleBackgroundMusic();
 });
 
+
+document.getElementById('toggle-manual-brake').addEventListener('click', () => {
+  game.toggleManualBrakeRequirement();
+});
+
+
 // Car selection buttons
 const carButtons = document.querySelectorAll('.car-btn');
 console.log('Found car buttons:', carButtons.length);
@@ -94,7 +100,7 @@ canvas.addEventListener('click', (e) => {
 
 function loadNextLevel() {
   const nextLevel = game.currentLevelIdx + 1;
-  if (nextLevel < game.levels.length) {
+  if (nextLevel < game.levelCount) {
     game.loadLevel(nextLevel);
   } else {
     alert('Gratulacje! Ukończyłeś wszystkie poziomy!');

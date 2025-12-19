@@ -1,0 +1,36 @@
+name: Deploy game folder to GitHub Pages
+
+on:
+  push:
+    branches:
+      - deliveroo-gta-s2-new-features
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare public folder (copy game)
+        run: |
+          rm -rf public
+          mkdir -p public
+          cp -R M3/gta-s2-deliveroo/* public/
+          # If you have a build step, run it here and output to public/
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v3
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: public
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1
