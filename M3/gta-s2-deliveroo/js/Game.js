@@ -33,6 +33,7 @@ class Game {
         this.currentParkingZones = [];
         this.isMusicOn = true;
         this.parkingScore = 0; // 0-100% parking accuracy score
+        this.shouldRelockTruck = false; // Track if TRUCK needs to be re-locked
         
         // Car selection state
         this.selectedCarType = null; // 'COMPACT', 'SPORT', 'SUV', 'TRUCK
@@ -151,6 +152,28 @@ class Game {
             const btn = document.querySelector(`#levels-container .level-btn:nth-child(${idx + 1})`);
             if (btn) {
                 btn.innerText = `${idx + 1}. ${ld.name}`;
+            }
+
+            // Handle vehicle requirements (e.g., TRUCK demo level)
+            if (ld.requiresVehicle === 'TRUCK') {
+                // Temporarily unlock and auto-select TRUCK for demo level
+                const truckConfig = CAR_CONFIGS.TRUCK;
+                const wasLocked = truckConfig.locked;
+                
+                truckConfig.locked = false;
+                this.selectCar('TRUCK');
+                
+                // Store that we need to re-lock after this level
+                this.shouldRelockTruck = wasLocked;
+            } else if (this.shouldRelockTruck) {
+                // Re-lock TRUCK when leaving demo level
+                CAR_CONFIGS.TRUCK.locked = true;
+                this.shouldRelockTruck = false;
+                
+                // Auto-select default car if TRUCK was in use
+                if (this.selectedCarType === 'TRUCK') {
+                    this.selectCar('COMPACT');
+                }
             }
 
             // Zatrzymaj wszystkie klaksony przed załadowaniem nowego poziomu
