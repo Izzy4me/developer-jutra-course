@@ -11,7 +11,9 @@ import { Curb } from './Curb.js';
 import * as geom from './utils/geom.js';
 import * as audio from './utils/audio.js';
 import { CONFIG } from './config.js';
+import { CAR_CONFIGS } from './carConfigs.js';
 import levelFiles from './levels/index.js';
+import { ScoreHistory } from './ScoreHistory.js';
 
 export default 
 class Game {
@@ -25,12 +27,26 @@ class Game {
         this.currentLevelIdx = 0;
         this.state = 'TITLE_SCREEN'; 
         this.bonkPos = {x:0, y:0};
-        this.player = new PlayerCar(0,0,0);
+        this.player = new PlayerCar(0,0,0, null, 'COMPACT');
         this.currentCars = [];
         this.currentObstacles = [];
         this.currentCurbs = [];
         this.currentParkingZones = [];
         this.isMusicOn = true;
+        this.parkingScore = 0; // 0-100% parking accuracy score
+        this.shouldRelockTruck = false; // Track if TRUCK needs to be re-locked
+        this.requireManualBrakeToPark = false; // Manual parking brake requirement (default: OFF)
+        this.showParkingHint = false; // Show hint when player is in zone but brake not applied
+        
+        // Score history tracking
+        this.scoreHistory = new ScoreHistory();
+        this.levelAttempts = 0; // Counter for current level attempts
+        this.isNewPersonalBest = false; // Flag for level complete screen
+        this.previousBestScore = null; // For comparison display
+        
+        // Car selection state
+        this.selectedCarType = 'COMPACT'; // Default to COMPACT to prevent null scores
+        this.carColor = null; // {r, g, b} for rendering
         
         // Title screen animation
         this.titleTime = 0;
@@ -53,7 +69,40 @@ class Game {
         for (let i = 0; i < this.levelCount; i++) {
             const btn = document.createElement('button');
             btn.className = 'level-btn';
-            btn.innerText = `Poziom ${i + 1}`; // Levels now will be hidden until loaded
+            
+            // Check if this level has a best score
+            const bestScore = this.scoreHistory.getBestScore(i + 1);
+            
+            if (bestScore) {
+                // Level completed - show badge with score and medal
+                const scorePercent = bestScore.score.toFixed(1);
+                const carTypeShort = this.getCarTypeShortName(bestScore.carType);
+                const medal = this.getMedalForScore(bestScore.score);
+                
+                btn.innerHTML = `
+                    <span class="level-number">Poziom ${i + 1}</span>
+                    <span class="level-badge">${medal} ${scorePercent}% (${carTypeShort})</span>
+                `;
+                btn.classList.add('completed'); // Add CSS class for styling
+                
+                // Add medal-specific class for optional styling
+                if (bestScore.score >= 85) {
+                    btn.classList.add('gold');
+                } else if (bestScore.score > 67) {
+                    btn.classList.add('silver');
+                } else if (bestScore.score >= 50) {
+                    btn.classList.add('bronze');
+                }
+            } else {
+                // Not completed yet - just level number
+                btn.innerHTML = `<span class="level-number">Poziom ${i + 1}</span>`;
+            }
+            
+            // Highlight current level
+            if (i === this.currentLevelIdx) {
+                btn.classList.add('active');
+            }
+            
             btn.onclick = () => this.loadLevel(i);
             container.appendChild(btn);
         }
@@ -72,7 +121,86 @@ class Game {
         }
     }
 
+    toggleManualBrakeRequirement() {
+        this.requireManualBrakeToPark = !this.requireManualBrakeToPark;
+        const btn = document.getElementById('toggle-manual-brake');
+        if (btn) {
+            btn.innerText = `Hamulec Ręczny Wymagany: ${this.requireManualBrakeToPark ? 'WŁ' : 'WYŁ'}`;
+        }
+    }
+
+    /**
+     * Get short name for car type (for badge display)
+     * @param {string} carType - 'COMPACT', 'SPORT', 'SUV', 'TRUCK'
+     * @returns {string} Short car type name
+     */
+    getCarTypeShortName(carType) {
+        const names = {
+            'COMPACT': 'CMP',
+            'SPORT': 'SPT',
+            'SUV': 'SUV',
+            'TRUCK': 'TRK'
+        };
+        return names[carType] || carType;
+    }
+
+    /**
+     * Get medal emoji based on score
+     * @param {number} score - Parking score (0-100)
+     * @returns {string} Medal emoji
+     */
+    getMedalForScore(score) {
+        if (score >= 85) return '🥇'; // Gold
+        if (score > 67) return '🥈';  // Silver (>67 and <85)
+        if (score >= 50) return '🥉'; // Bronze (50-67)
+        return '⭐'; // Star for scores below 50%
+    }
+
+    /**
+     * Select a car type and apply its configuration
+     * @param {string} carType - 'COMPACT', 'SPORT', or 'SUV'
+     * @returns {boolean} - true if selection successful, false if locked
+     */
+    selectCar(carType) {
+        console.log('selectCar called with:', carType);
+        const carConfig = CAR_CONFIGS[carType];
+        console.log('carConfig:', carConfig);
+        
+        // Handle locked cars (SUV)
+        if (carConfig.locked) {
+            alert(carConfig.lockMessage);
+            return false;
+        }
+        
+        // Apply configuration
+        this.selectedCarType = carType;
+        this.carColor = carConfig.color;
+        CONFIG.applyCarConfig(carConfig);
+        
+        // Update player car with new config and color
+        this.player.carType = carType;
+        this.player.setColor(carConfig.color);
+        this.player.reset(this.player.x || 0, this.player.y || 0, this.player.angle || 0);
+        
+        console.log('Car selected successfully:', carType);
+        return true;
+    }
+
+    /**
+     * Get the currently selected car configuration
+     * @returns {Object|null} - Car config object or null if none selected
+     */
+    getSelectedCarConfig() {
+        return this.selectedCarType ? CAR_CONFIGS[this.selectedCarType] : null;
+    }
+
     async startGame() {
+        // Ensure car is selected before starting
+        if (!this.selectedCarType) {
+            alert('Proszę najpierw wybrać samochód!');
+            return;
+        }
+        
         this.state = 'LOADING';
         await this.loadLevel(this.currentLevelIdx);
     }
@@ -82,6 +210,15 @@ class Game {
             alert('Gratulacje! Ukończyłeś wszystkie poziomy!');
             idx = 0;
         }
+        
+        // If switching to a different level, reset attempts
+        if (idx !== this.currentLevelIdx) {
+            this.levelAttempts = 0;
+        }
+        
+        // Increment attempts counter for this load
+        this.levelAttempts++;
+        
         this.currentLevelIdx = idx;
 
         try {
@@ -97,10 +234,43 @@ class Game {
                 Curb
             });
 
-            // Update button text with the actual level name
+            // Update button with the actual level name (preserve badge if exists)
             const btn = document.querySelector(`#levels-container .level-btn:nth-child(${idx + 1})`);
             if (btn) {
-                btn.innerText = `${idx + 1}. ${ld.name}`;
+                const bestScore = this.scoreHistory.getBestScore(idx + 1);
+                
+                if (bestScore) {
+                    // Keep the badge, just update the level name in the number span
+                    const levelNumberSpan = btn.querySelector('.level-number');
+                    if (levelNumberSpan) {
+                        levelNumberSpan.textContent = `${idx + 1}. ${ld.name}`;
+                    }
+                } else {
+                    // No badge yet, just set the level name
+                    btn.innerHTML = `<span class="level-number">${idx + 1}. ${ld.name}</span>`;
+                }
+            }
+
+            // Handle vehicle requirements (e.g., TRUCK demo level)
+            if (ld.requiresVehicle === 'TRUCK') {
+                // Temporarily unlock and auto-select TRUCK for demo level
+                const truckConfig = CAR_CONFIGS.TRUCK;
+                const wasLocked = truckConfig.locked;
+                
+                truckConfig.locked = false;
+                this.selectCar('TRUCK');
+                
+                // Store that we need to re-lock after this level
+                this.shouldRelockTruck = wasLocked;
+            } else if (this.shouldRelockTruck) {
+                // Re-lock TRUCK when leaving demo level
+                CAR_CONFIGS.TRUCK.locked = true;
+                this.shouldRelockTruck = false;
+                
+                // Auto-select default car if TRUCK was in use
+                if (this.selectedCarType === 'TRUCK') {
+                    this.selectCar('COMPACT');
+                }
             }
 
             // Zatrzymaj wszystkie klaksony przed załadowaniem nowego poziomu
@@ -119,12 +289,14 @@ class Game {
             this.currentCurbs = ld.curbs || [];
             this.currentParkingZones = ld.parkingZones || [];
             this.level = ld; // Store current level data
+            this.parkingScore = 0; // Reset parking score for new level
             
             this.state = 'RUNNING';
             this.shakeTimer = 0;
             
             document.getElementById('toggle-steering-mode').innerText = `Asystent Kierownicy: ${this.player.steeringMode === 'DRIVING' ? 'WŁ' : 'WYŁ'}`;
             document.getElementById('toggle-winter-mode').innerText = `Poślizgi Zimowe: ${this.player.winterMode ? 'WŁ' : 'WYŁ'}`;
+            document.getElementById('toggle-manual-brake').innerText = `Hamulec Ręczny Wymagany: ${this.requireManualBrakeToPark ? 'WŁ' : 'WYŁ'}`;
 
             const levelButtons = document.querySelectorAll('#levels-container .level-btn');
             levelButtons.forEach((btn, i) => btn.classList.toggle('active', i === idx));
@@ -247,26 +419,149 @@ class Game {
         }
     }
 
-    checkParking() {
+    /**
+     * Calculate parking score based on industry-standard metrics:
+     * - Lateral centering (50% weight) - Most critical for door opening
+     * - Longitudinal centering (20% weight) - Space efficiency
+     * - Angular alignment (20% weight) - Parallel parking accuracy
+     * - Margin from edges (10% weight) - Safety buffer
+     * @param {Object} zone - The parking zone object
+     * @returns {number} - Score from 0-100
+     */
+    calculateParkingScore(zone) {
+        // 1. Lateral centering (perpendicular to zone orientation)
+        // This is the most important - ensures doors can open
+        const zoneCenterX = zone.x;
+        const zoneCenterY = zone.y;
+        const carCenterX = this.player.x;
+        const carCenterY = this.player.y;
+        
+        // Calculate distance from zone center
+        const dx = carCenterX - zoneCenterX;
+        const dy = carCenterY - zoneCenterY;
+        
+        // Rotate the difference vector to align with zone's local coordinate system
+        const zoneAngle = zone.angle || 0;
+        const cosAngle = Math.cos(-zoneAngle);
+        const sinAngle = Math.sin(-zoneAngle);
+        const localX = dx * cosAngle - dy * sinAngle; // Longitudinal offset
+        const localY = dx * sinAngle + dy * cosAngle; // Lateral offset
+        
+        // Calculate lateral centering score (50% weight)
+        // Perfect centering = 100%, touching edge = 0%
+        const maxLateralOffset = zone.w / 2 - this.player.w / 2; // Max distance before touching edge
+        const lateralOffset = Math.abs(localY);
+        const lateralScore = Math.max(0, 100 * (1 - lateralOffset / maxLateralOffset));
+        
+        // 2. Longitudinal centering score (20% weight)
+        const maxLongitudinalOffset = zone.l / 2 - this.player.l / 2;
+        const longitudinalOffset = Math.abs(localX);
+        const longitudinalScore = Math.max(0, 100 * (1 - longitudinalOffset / maxLongitudinalOffset));
+        
+        // 3. Angular alignment score (20% weight)
+        // Check how parallel the car is to the parking zone
+        let targetAngle = zoneAngle;
+        if (zone.parkingType === 'reverse') {
+            // For reverse parking, target angle is 180° opposite
+            targetAngle = zoneAngle + Math.PI;
+        }
+        
+        const angleDiff = Math.atan2(
+            Math.sin(this.player.angle - targetAngle),
+            Math.cos(this.player.angle - targetAngle)
+        );
+        const angleDiffDegrees = Math.abs(angleDiff * 180 / Math.PI);
+        // Perfect alignment = 100%, 15° off = 0%
+        const angularScore = Math.max(0, 100 * (1 - angleDiffDegrees / 15));
+        
+        // 4. Margin from edges (10% weight)
+        // Reward having safety buffer from all edges
+        const carCorners = geom.getCorners(this.player.x, this.player.y, this.player.w, this.player.l, this.player.angle);
+        const zoneCorners = geom.getCorners(zone.x, zone.y, zone.w, zone.l, zone.angle || 0);
+        
+        // Calculate minimum distance from car edges to zone edges
+        let minMarginScore = 100;
+        carCorners.forEach(carCorner => {
+            // Transform car corner to zone's local space
+            const cdx = carCorner.x - zone.x;
+            const cdy = carCorner.y - zone.y;
+            const localCornerX = cdx * cosAngle - cdy * sinAngle;
+            const localCornerY = cdx * sinAngle + cdy * cosAngle;
+            
+            // Distance from edges (in zone's local space)
+            const distFromLeftEdge = Math.abs(localCornerY + zone.w / 2);
+            const distFromRightEdge = Math.abs(localCornerY - zone.w / 2);
+            const distFromTopEdge = Math.abs(localCornerX + zone.l / 2);
+            const distFromBottomEdge = Math.abs(localCornerX - zone.l / 2);
+            
+            const minDist = Math.min(distFromLeftEdge, distFromRightEdge, distFromTopEdge, distFromBottomEdge);
+            
+            // Ideal margin is ~10 pixels, anything less reduces score
+            const idealMargin = 10;
+            const marginRatio = Math.min(minDist / idealMargin, 1);
+            minMarginScore = Math.min(minMarginScore, marginRatio * 100);
+        });
+        
+        // Weighted final score
+        const finalScore = (
+            lateralScore * 0.50 +
+            longitudinalScore * 0.20 +
+            angularScore * 0.20 +
+            minMarginScore * 0.10
+        );
+        
+        return Math.round(finalScore);
+    }
+
+   checkParking() {
         // Car must be moving very slowly to be considered parked.
-        if (Math.abs(this.player.speed) > 0.1) return;
+        if (Math.abs(this.player.speed) > 0.1) {
+            this.showParkingHint = false;
+            return;
+        }
 
         for (let zone of this.currentParkingZones) {
-            // 1. Check if all 4 corners of the car are inside the parking zone
             const carCorners = geom.getCorners(this.player.x, this.player.y, this.player.w, this.player.l, this.player.angle);
-            let allCornersIn = true;
-            for (const corner of carCorners) {
-                if (!geom.isPointInRotatedRect(corner, zone)) {
-                    allCornersIn = false;
-                    break;
-                }
-            }
+            const allCornersIn = carCorners.every(corner => geom.isPointInRotatedRect(corner, zone));
 
             if (allCornersIn) {
-                this.triggerLevelComplete();
-                return;
+                // Check if reverse parking is required for this zone
+                if (zone.parkingType === 'reverse') {
+                    const zoneAngle = zone.angle || 0;
+                    // Calculate normalized angle difference in range [-PI, PI]
+                    const angleDiff = Math.atan2(Math.sin(this.player.angle - zoneAngle), Math.cos(this.player.angle - zoneAngle));
+                    
+                    // Check if the car is facing the opposite direction (diff is close to PI or -PI)
+                    // Tolerance of ~23 degrees (0.4 radians)
+                    if (Math.abs(angleDiff) > Math.PI - 0.4) {
+                        // Check if manual brake is required
+                        if (this.requireManualBrakeToPark && !this.input.keys['Space']) {
+                            this.showParkingHint = true;
+                            return;
+                        }
+                        // Calculate parking score before completing level
+                        this.showParkingHint = false;
+                        this.parkingScore = this.calculateParkingScore(zone);
+                        this.triggerLevelComplete();
+                        return;
+                    }
+                } else {
+                    // Normal parking - check brake requirement
+                    if (this.requireManualBrakeToPark && !this.input.keys['Space']) {
+                        this.showParkingHint = true;
+                        return;
+                    }
+                    // Calculate score before completing
+                    this.showParkingHint = false;
+                    this.parkingScore = this.calculateParkingScore(zone);
+                    this.triggerLevelComplete();
+                    return;
+                }
             }
         }
+        
+        // Not in any parking zone
+        this.showParkingHint = false;
     }
 
     triggerGameOver() {
@@ -291,6 +586,30 @@ class Game {
         // Initialize level complete animation
         this.levelCompleteTime = 0;
         this.levelCompleteButtonHover = false;
+
+        // Get previous best score before saving (for comparison)
+        const levelNumber = this.currentLevelIdx + 1; // Convert 0-indexed to 1-indexed
+        const previousBest = this.scoreHistory.getBestScore(levelNumber);
+        
+        // Save score to history
+        const levelName = this.level?.name || `Poziom ${levelNumber}`;
+        const isNewBest = this.scoreHistory.recordScore(
+            levelNumber,
+            this.parkingScore,
+            this.selectedCarType,
+            this.levelAttempts,
+            levelName
+        );
+        
+        // Store flags and data for display in level complete screen
+        this.isNewPersonalBest = isNewBest;
+        this.previousBestScore = previousBest ? previousBest.score : null;
+        
+        // Reset attempts counter for next level
+        this.levelAttempts = 0;
+        
+        // Refresh level buttons to show new best score
+        this.populateLevelButtons();
 
         const music = document.getElementById('background-music');
         if (music) music.pause();
@@ -335,6 +654,10 @@ class Game {
             return;
         }
 
+        // Hide car selection panel during gameplay
+        const carPanel = document.getElementById('car-selection-panel');
+        if (carPanel) carPanel.style.display = 'none';
+
         // Environment - guard against missing this.level
         const levelType = (this.level && this.level.type) ? this.level.type : 'street';
         if (levelType === 'lot') {
@@ -360,6 +683,11 @@ class Game {
         // Rysuj ślady opon przed samochodem gracza
         this.player.drawSkidMarks(this.ctx);
         this.player.draw(this.ctx);
+
+        // Parking hint (when manual brake required)
+        if (this.showParkingHint && this.requireManualBrakeToPark) {
+            this.drawParkingHint();
+        }
 
         // Bonk
         if (this.state === 'GAMEOVER') {
@@ -404,7 +732,7 @@ class Game {
         // "PARKING" Text
         this.ctx.save();
         this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
-        this.ctx.font = "bold 80px Arial";
+        this.ctx.font = "bold 55px Arial";
         this.ctx.textAlign = "center";
         this.ctx.fillText("PARKING", this.canvas.width/2, 130);
         this.ctx.restore();
@@ -708,9 +1036,17 @@ class Game {
         this.ctx.font = '12px Arial, sans-serif';
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
         this.ctx.fillText('© 1993 WARSZAFKA STUDIOS', this.canvas.width / 2, this.canvas.height - 30);
+        
+        // Show car selection panel on title screen
+        const carPanel = document.getElementById('car-selection-panel');
+        if (carPanel) carPanel.style.display = 'block';
     }
 
     drawLevelCompleteScreen() {
+        // Hide car selection panel during level complete
+        const carPanel = document.getElementById('car-selection-panel');
+        if (carPanel) carPanel.style.display = 'none';
+        
         // 90s Style Level Complete Screen
         this.levelCompleteTime += 0.016;
         
@@ -780,22 +1116,117 @@ class Game {
         this.ctx.lineWidth = 4;
         this.ctx.strokeText('GRATULACJE!', this.canvas.width / 2, centerY + bounce);
         
-        // "Poziom ukończony!" subtitle
+        // Subtitle: "NEW BEST!" if beating record, or "Poziom ukończony!" if first time
         this.ctx.font = 'bold 32px Arial, sans-serif';
         const subtitleY = centerY + 70;
         
+        let subtitleText = 'Poziom ukończony!';
+        let subtitleColor = null; // null = use pulsing color
+        
+        if (this.isNewPersonalBest && this.previousBestScore !== null) {
+            // Beating existing record - show NEW BEST!
+            subtitleText = '🏆 NEW BEST! 🏆';
+            subtitleColor = '#ffd700'; // Golden color
+        }
+        
         // Shadow
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        this.ctx.fillText('Poziom ukończony!', this.canvas.width / 2 + 2, subtitleY + 2);
+        this.ctx.fillText(subtitleText, this.canvas.width / 2 + 2, subtitleY + 2);
         
-        // Subtitle with pulsing color
-        const pulseColor = Math.sin(this.levelCompleteTime * 5) * 127 + 128;
-        this.ctx.fillStyle = `rgb(${pulseColor}, 255, ${255 - pulseColor})`;
-        this.ctx.fillText('Poziom ukończony!', this.canvas.width / 2, subtitleY);
+        // Subtitle with color
+        if (subtitleColor) {
+            // Fixed color for NEW BEST
+            this.ctx.fillStyle = subtitleColor;
+        } else {
+            // Pulsing color for level complete
+            const pulseColor = Math.sin(this.levelCompleteTime * 5) * 127 + 128;
+            this.ctx.fillStyle = `rgb(${pulseColor}, 255, ${255 - pulseColor})`;
+        }
+        this.ctx.fillText(subtitleText, this.canvas.width / 2, subtitleY);
         
         this.ctx.strokeStyle = '#000';
         this.ctx.lineWidth = 3;
-        this.ctx.strokeText('Poziom ukończony!', this.canvas.width / 2, subtitleY);
+        this.ctx.strokeText(subtitleText, this.canvas.width / 2, subtitleY);
+        
+        // Parking Score Display
+        const scoreY = subtitleY + 60;
+        this.ctx.font = 'bold 28px Arial, sans-serif';
+        
+        // Determine score color based on quality
+        let scoreColor;
+        let scoreLabel;
+        if (this.parkingScore >= 95) {
+            scoreColor = '#00ff00'; // Perfect - Green
+            scoreLabel = 'PERFEKCYJNIE!';
+        } else if (this.parkingScore >= 85) {
+            scoreColor = '#7fff00'; // Excellent - Light Green
+            scoreLabel = 'ŚWIETNIE!';
+        } else if (this.parkingScore >= 75) {
+            scoreColor = '#ffff00'; // Good - Yellow
+            scoreLabel = 'DOBRZE!';
+        } else if (this.parkingScore >= 60) {
+            scoreColor = '#ffa500'; // Fair - Orange
+            scoreLabel = 'CAŁKIEM NIEŹLE';
+        } else {
+            scoreColor = '#ff6b6b'; // Poor - Red
+            scoreLabel = 'DO POPRAWY...';
+        }
+        
+        // Score label shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.fillText('Dokładność parkowania:', this.canvas.width / 2 + 2, scoreY + 2);
+        
+        // Score label
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillText('Dokładność parkowania:', this.canvas.width / 2, scoreY);
+        
+        this.ctx.strokeStyle = '#000';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeText('Dokładność parkowania:', this.canvas.width / 2, scoreY);
+        
+        // Score value with animated color
+        const scoreValueY = scoreY + 50;
+        this.ctx.font = 'bold 48px Arial, sans-serif';
+        
+        // Score shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.fillText(`${this.parkingScore}%`, this.canvas.width / 2 + 3, scoreValueY + 3);
+        
+        // Score with color
+        this.ctx.fillStyle = scoreColor;
+        this.ctx.fillText(`${this.parkingScore}%`, this.canvas.width / 2, scoreValueY);
+        
+        this.ctx.strokeStyle = '#000';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeText(`${this.parkingScore}%`, this.canvas.width / 2, scoreValueY);
+        
+        // Score quality label
+        const qualityY = scoreValueY + 50;
+        this.ctx.font = 'bold 20px Arial, sans-serif';
+        
+        // Quality shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.fillText(scoreLabel, this.canvas.width / 2 + 2, qualityY + 2);
+        
+        // Quality label with pulsing effect
+        const qualityPulse = Math.sin(this.levelCompleteTime * 4) * 0.3 + 0.7;
+        this.ctx.fillStyle = scoreColor;
+        this.ctx.globalAlpha = qualityPulse;
+        this.ctx.fillText(scoreLabel, this.canvas.width / 2, qualityY);
+        this.ctx.globalAlpha = 1;
+        
+        // Show "NEW BEST!" banner if this was a personal record (STRETCH GOAL - Phase 1.5)
+        if (this.isNewPersonalBest && this.previousBestScore !== null) {
+            // Only show if we beat an existing record (not first completion)
+            const deltaY = qualityY + 40;
+            const previousText = `Previous best: ${this.previousBestScore.toFixed(1)}%`;
+            
+            this.ctx.font = '20px Arial, sans-serif';
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            this.ctx.fillText(previousText, this.canvas.width / 2 + 1, deltaY + 1);
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.fillText(previousText, this.canvas.width / 2, deltaY);
+        }
         
         // "NASTĘPNY POZIOM" Button (90s style)
         const buttonWidth = 320;
@@ -889,5 +1320,38 @@ class Game {
         this.ctx.fillText("BONK!", 0, 0);
         
         this.ctx.restore();
+    }
+
+    drawParkingHint() {
+        // Draw hint message when player is in parking zone but hasn't applied brake
+        const hintY = this.canvas.height - 150;
+        
+        // Semi-transparent background box
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        this.ctx.fillRect(0, hintY - 30, this.canvas.width, 60);
+        
+        // Border
+        this.ctx.strokeStyle = '#f39c12';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(0, hintY - 30, this.canvas.width, 60);
+        
+        // Hint text
+        this.ctx.font = 'bold 20px Arial, sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        
+        // Text shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        this.ctx.fillText('Zaciągnij hamulec ręczny, aby zakończyć parkowanie', this.canvas.width / 2 + 2, hintY + 2);
+        
+        // Main text (pulsing effect)
+        const pulse = Math.sin(Date.now() * 0.005) * 0.3 + 0.7;
+        this.ctx.fillStyle = `rgba(243, 156, 18, ${pulse})`;
+        this.ctx.fillText('Zaciągnij hamulec ręczny, aby zakończyć parkowanie', this.canvas.width / 2, hintY);
+        
+        // SPACE key icon
+        this.ctx.font = 'bold 16px monospace';
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillText('(SPACJA)', this.canvas.width / 2, hintY + 25);
     }
 }

@@ -19,6 +19,8 @@ const levelFiles = [
     'level18.js',
     'level19.js',
     'level20.js',
+    'level21.js',
+    'level22.js',
 ];
 
 export default levelFiles;

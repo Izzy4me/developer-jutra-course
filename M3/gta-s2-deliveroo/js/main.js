@@ -28,6 +28,35 @@ document.getElementById('toggle-music-btn').addEventListener('click', () => {
   game.toggleBackgroundMusic();
 });
 
+
+document.getElementById('toggle-manual-brake').addEventListener('click', () => {
+  game.toggleManualBrakeRequirement();
+});
+
+
+// Car selection buttons
+const carButtons = document.querySelectorAll('.car-btn');
+console.log('Found car buttons:', carButtons.length);
+carButtons.forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    console.log('Car button clicked:', btn.getAttribute('data-car-type'));
+    const carType = btn.getAttribute('data-car-type');
+    const success = game.selectCar(carType);
+    
+    console.log('Selection success:', success);
+    if (success) {
+      // Update visual selection state
+      document.querySelectorAll('.car-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      
+      // Update info text
+      const carConfig = game.getSelectedCarConfig();
+      document.getElementById('car-selection-info').innerText = 
+        `Wybrany pojazd: ${carConfig.displayName}`;
+    }
+  });
+});
+
 // Handle mouse events for title screen button
 canvas.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
@@ -71,7 +100,7 @@ canvas.addEventListener('click', (e) => {
 
 function loadNextLevel() {
   const nextLevel = game.currentLevelIdx + 1;
-  if (nextLevel < game.levels.length) {
+  if (nextLevel < game.levelCount) {
     game.loadLevel(nextLevel);
   } else {
     alert('Gratulacje! Ukończyłeś wszystkie poziomy!');
