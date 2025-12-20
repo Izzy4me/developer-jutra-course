@@ -44,6 +44,11 @@ export default class PlayerCar {
         // Hamulec ręczny - startowanie
         this.handbrakeBoost = 0; // Zgromadzona moc (0-1)
         this.previousSpaceKey = false; // Czy w poprzedniej klatce trzymał SPACE
+
+        // Achievement tracking
+        this.boostFullAchievementTriggered = false; // Emit boostFull only once per reset
+        
+        this.speedAchievementTriggered = false; // Track if speed achievement was already triggered
         
         // Stan wejścia dla rysowania świateł
         this.isBraking = false;
@@ -115,7 +120,16 @@ export default class PlayerCar {
 
         // Budowanie boost gdy trzyma hamulec + gaz
         if (isHandbraking && isThrottling && this.engineOn) {
+            const wasBelowMax = this.handbrakeBoost < CONFIG.handbrakeBoostMax;
             this.handbrakeBoost = Math.min(CONFIG.handbrakeBoostMax, this.handbrakeBoost + CONFIG.handbrakeBoostRate);
+
+            if (!this.boostFullAchievementTriggered && wasBelowMax && this.handbrakeBoost >= (CONFIG.handbrakeBoostMax - 1e-9)) {
+                this.boostFullAchievementTriggered = true;
+                this.game?.onBoostFull?.({
+                    boost: this.handbrakeBoost,
+                    boostPercent: 100
+                });
+            }
 
             // Hamuj auto podczas budowania boost
             this.speed *= 0.8; // Mocne hamowanie
@@ -176,6 +190,16 @@ export default class PlayerCar {
         if (!this.engineOn) {
             this.speed *= (1 - CONFIG.friction);
             if (Math.abs(this.speed) < 0.05) this.speed = 0;
+        }
+
+        // TODO (msmet): probably remove this section and integrate into achievement manager, adding achievement thresholds const and some other way of checking it (it is weakest performance-wise achievement)
+        // Track max speed for achievements (200+ km/h)
+        if (!this.speedAchievementTriggered && this.game?.onSpeedRecord) {
+            const speedKmh = Math.abs(this.speed * CONFIG.kmhFactor); // Same as UI calculation
+            if (speedKmh > 200) {
+                this.speedAchievementTriggered = true; // Mark as triggered to avoid repeated checks
+                this.game.onSpeedRecord({ speed: speedKmh });
+            }
         }
 
         // Limits
@@ -246,7 +270,16 @@ export default class PlayerCar {
 
         // Budowanie boost gdy trzyma hamulec + gaz
         if (isHandbraking && isThrottling && this.engineOn) {
+            const wasBelowMax = this.handbrakeBoost < CONFIG.handbrakeBoostMax;
             this.handbrakeBoost = Math.min(CONFIG.handbrakeBoostMax, this.handbrakeBoost + CONFIG.handbrakeBoostRate);
+
+            if (!this.boostFullAchievementTriggered && wasBelowMax && this.handbrakeBoost >= (CONFIG.handbrakeBoostMax - 1e-9)) {
+                this.boostFullAchievementTriggered = true;
+                this.game?.onBoostFull?.({
+                    boost: this.handbrakeBoost,
+                    boostPercent: 100
+                });
+            }
 
             // Hamuj auto podczas budowania boost
             this.velocityX *= 0.75;

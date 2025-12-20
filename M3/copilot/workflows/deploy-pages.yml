@@ -2,7 +2,7 @@ name: Deploy GitHub Pages
 
 on:
   push:
-    branches: ["deliveroo-gta-s2-refactor"]
+    branches: ["deliveroo-gta-s2-final"]
   workflow_dispatch:
 
 permissions:

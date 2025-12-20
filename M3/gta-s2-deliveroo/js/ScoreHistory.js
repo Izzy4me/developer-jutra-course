@@ -2,6 +2,8 @@
  * ScoreHistory.js - Manages persistent score tracking via localStorage
  */
 
+import levelFiles from './levels/index.js';
+
 const STORAGE_KEY = 'gta-s2-deliveroo-scores';
 const STORAGE_VERSION = 1;
 
@@ -94,7 +96,7 @@ export class ScoreHistory {
      */
     getStats() {
         const completed = Object.keys(this.scores.scores).length;
-        const total = 22; // Total levels
+        const total = levelFiles.length; // Dynamic level count
         let totalScore = 0;
         let count = 0;
 
