@@ -76,6 +76,9 @@ class Game {
         // Achievements screen state
         this.achievementsScrollOffset = 0;
         
+        // UI collapse state (null = use per-screen defaults, true/false = explicit user choice)
+        this.uiCollapsed = null;
+        
         this.updateUI();
         this.populateLevelButtons();
     }
@@ -101,6 +104,15 @@ class Game {
                 const mode = (this.player && this.player.carMode === 'sport') ? 'WŁ' : 'WYŁ';
                 sportBtn.innerText = `Tryb Sportowy: ${mode}`;
             }
+        }
+    }
+
+    setUiCollapsed(collapsed) {
+        this.uiCollapsed = collapsed;
+        const uiContainer = document.getElementById('ui-container');
+        if (uiContainer) {
+            // Mark that user has taken control (so renderer respects this choice and not load defaults)
+            uiContainer.setAttribute('data-user-controlled', 'true');
         }
     }
 
@@ -721,9 +733,10 @@ class Game {
                     achievementsScrollOffset: this.achievementsScrollOffset,
                     hoverAchievementsBack: this.achievementsBackButtonHover
                 }
-            }
+            },
+            uiCollapsed: this.uiCollapsed
         };
-        
+
         // Delegate to renderer
         this.renderer.draw(gameState);
         

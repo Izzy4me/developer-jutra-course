@@ -216,6 +216,59 @@
             color: #95a5a6;
             text-align: center;
         }
+        /* Collapse button (fixed so it remains clickable) */
+        .collapse-btn {
+            position: fixed;
+            right: 24px;
+            top: 24px;
+            z-index: 1300;
+            width: 36px;
+            height: 36px;
+            background: rgba(30,30,30,0.95);
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+        }
+
+        /* Collapsible inner container that will be transformed when #ui-container has .ui-collapsed */
+        .collapsible { 
+            transition: transform 220ms ease, opacity 220ms ease; 
+            transform: translateX(0) scale(1); 
+            opacity: 1; 
+            pointer-events: auto;
+            transform-origin: top right;
+        }
+
+        #ui-container.ui-collapsed #collapsible-right-menu { 
+            transform: translateX(320px) scale(0.8);
+            opacity: 0; 
+            pointer-events: none; 
+        }
+
+        /* Fallback class when toggled directly from JS */
+        #collapsible-right-menu.collapsed-fallback {
+            transform: translateX(320px) scale(0.8);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Collapsed state marker for the outer container (no transform here) */
+        #ui-container.ui-collapsed {
+            /* Marker class only — inner #collapsible-right-menu handles transform and scale */
+        }
+
+        /* Smooth transition on the outer container (kept for any small layout changes) */
+        #ui-container {
+            transition: background 220ms ease;
+            pointer-events: auto; /* allow child controls (collapse button) to receive events */
+        }
     </style>
 </head>
 <body>
@@ -223,55 +276,58 @@
 <audio id="background-music" src="background.wav" loop></audio>
 
 <div id="ui-container">
-    <div class="panel">
-        <h3>Sterowanie</h3>
-        <div><kbd>↑</kbd> Gaz</div>
-        <div><kbd>↓</kbd> Wsteczny</div>
-        <div><kbd>←</kbd> <kbd>→</kbd> Kierownica (Precyzyjna)</div>
-        <div><kbd>Spacja</kbd> Hamulec</div>
-    </div>
-    
-    <div class="panel" id="car-selection-panel" style="display: none;">
-        <h3>Wybierz Samochód</h3>
-        <div id="car-buttons-container">
-            <button class="car-btn" data-car-type="COMPACT">
-                <div class="car-preview" style="background-color: rgb(52, 152, 219);"></div>
-                <span>Compact</span>
-            </button>
-            <button class="car-btn" data-car-type="SPORT">
-                <div class="car-preview" style="background-color: rgb(255, 40, 0);"></div>
-                <span>Sport</span>
-            </button>
-            <button class="car-btn" data-car-type="SUV">
-                <div class="car-preview" style="background-color: rgb(46, 48, 52);"></div>
-                <span>SUV</span>
-            </button>
-            <button class="car-btn" data-car-type="TRUCK">
-                <div class="car-preview" style="background-color: rgb(255, 102, 0);"></div>
-                <span>Truck</span>
-            </button>
-        </div>
-        <div id="car-selection-info">Wybierz pojazd przed rozpoczęciem gry</div>
-    </div>
-    
-    <div class="panel">
-        <h3>Poziomy</h3>
-        <div id="levels-container">
-            <!-- Przyciski poziomów będą generowane tutaj dynamicznie -->
+    <button id="toggle-ui-collapse" class="collapse-btn" aria-controls="collapsible-right-menu" aria-expanded="true" aria-label="Zwiń menu">☰</button>
+    <div id="collapsible-right-menu" class="collapsible">
+        <div class="panel">
+            <h3>Sterowanie</h3>
+            <div><kbd>↑</kbd> Gaz</div>
+            <div><kbd>↓</kbd> Wsteczny</div>
+            <div><kbd>←</kbd> <kbd>→</kbd> Kierownica (Precyzyjna)</div>
+            <div><kbd>Spacja</kbd> Hamulec</div>
         </div>
         
-        <div style="margin-top:15px; border-top: 1px solid #555; padding-top:10px;">
-            <div class="stat-row">Prędkość: <span class="stat-val" id="ui-speed">0 km/h</span></div>
-            <div class="stat-row">Skręt: <span class="stat-val" id="ui-steer">0°</span></div>
-            <div class="stat-row">Silnik: <span class="stat-val" id="ui-engine">ON</span></div>
-            <div class="stat-row">Światła: <span class="stat-val" id="ui-lights">ON</span></div>
-            <div class="stat-row">Poślizg: <span class="stat-val" id="ui-drift" style="color: #3498db;">NIE</span></div>
-            <div class="stat-row">Boost: <span class="stat-val" id="ui-boost" style="color: #95a5a6;">0%</span></div>
-            <button class="mode-btn" id="toggle-steering-mode">Asystent Kierownicy: WŁ</button>
-            <button class="mode-btn" id="toggle-winter-mode">Poślizgi Zimowe: WYŁ</button>
-            <button class="mode-btn" id="toggle-manual-brake">Hamulec Ręczny Wymagany: WYŁ</button>
-            <button class="mode-btn" id="toggle-sport-mode">Tryb Sportowy: WYŁ</button>
-            <button class="mode-btn" id="toggle-music-btn">Dźwięk: WŁ</button>
+        <div class="panel" id="car-selection-panel" style="display: none;">
+            <h3>Wybierz Samochód</h3>
+            <div id="car-buttons-container">
+                <button class="car-btn" data-car-type="COMPACT">
+                    <div class="car-preview" style="background-color: rgb(52, 152, 219);"></div>
+                    <span>Compact</span>
+                </button>
+                <button class="car-btn" data-car-type="SPORT">
+                    <div class="car-preview" style="background-color: rgb(255, 40, 0);"></div>
+                    <span>Sport</span>
+                </button>
+                <button class="car-btn" data-car-type="SUV">
+                    <div class="car-preview" style="background-color: rgb(46, 48, 52);"></div>
+                    <span>SUV</span>
+                </button>
+                <button class="car-btn" data-car-type="TRUCK">
+                    <div class="car-preview" style="background-color: rgb(255, 102, 0);"></div>
+                    <span>Truck</span>
+                </button>
+            </div>
+            <div id="car-selection-info">Wybierz pojazd przed rozpoczęciem gry</div>
+        </div>
+        
+        <div class="panel">
+            <h3>Poziomy</h3>
+            <div id="levels-container">
+                <!-- Przyciski poziomów będą generowane tutaj dynamicznie -->
+            </div>
+            
+            <div style="margin-top:15px; border-top: 1px solid #555; padding-top:10px;">
+                <div class="stat-row">Prędkość: <span class="stat-val" id="ui-speed">0 km/h</span></div>
+                <div class="stat-row">Skręt: <span class="stat-val" id="ui-steer">0°</span></div>
+                <div class="stat-row">Silnik: <span class="stat-val" id="ui-engine">ON</span></div>
+                <div class="stat-row">Światła: <span class="stat-val" id="ui-lights">ON</span></div>
+                <div class="stat-row">Poślizg: <span class="stat-val" id="ui-drift" style="color: #3498db;">NIE</span></div>
+                <div class="stat-row">Boost: <span class="stat-val" id="ui-boost" style="color: #95a5a6;">0%</span></div>
+                <button class="mode-btn" id="toggle-steering-mode">Asystent Kierownicy: WŁ</button>
+                <button class="mode-btn" id="toggle-winter-mode">Poślizgi Zimowe: WYŁ</button>
+                <button class="mode-btn" id="toggle-manual-brake">Hamulec Ręczny Wymagany: WYŁ</button>
+                <button class="mode-btn" id="toggle-sport-mode">Tryb Sportowy: WYŁ</button>
+                <button class="mode-btn" id="toggle-music-btn">Dźwięk: WŁ</button>
+            </div>
         </div>
     </div>
 </div>

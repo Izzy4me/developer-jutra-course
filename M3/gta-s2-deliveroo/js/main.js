@@ -13,7 +13,35 @@ resizeCanvas();
 
 const input = new InputHandler();
 const game = new Game(canvas, ctx, input);
-window.game = game; // expose for debugging/console access
+
+function setupUiCollapseHandlers(gameInstance) {
+  const uiContainer = document.getElementById('ui-container');
+  const collapseBtn = document.getElementById('toggle-ui-collapse');
+
+  if (!collapseBtn) return;
+
+  collapseBtn.setAttribute('aria-expanded', 'true');
+  collapseBtn.innerText = '✕';
+  collapseBtn.title = 'Zwiń menu (H)';
+
+  // Toggle function used by both click and keyboard handlers
+  const toggleUiCollapse = () => {
+    const isCollapsed = uiContainer && uiContainer.classList.contains('ui-collapsed');
+    const newState = !isCollapsed;
+    gameInstance.setUiCollapsed(newState);
+  };
+
+  collapseBtn.addEventListener('click', toggleUiCollapse);
+
+  // Keyboard shortcut: H to toggle
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'h' || e.key === 'H') {
+      toggleUiCollapse();
+    }
+  });
+}
+
+setupUiCollapseHandlers(game);
 
 // Wire up UI button event listeners
 document.getElementById('toggle-steering-mode').addEventListener('click', () => {
@@ -41,14 +69,11 @@ document.getElementById('toggle-manual-brake').addEventListener('click', () => {
 
 // Car selection buttons
 const carButtons = document.querySelectorAll('.car-btn');
-console.log('Found car buttons:', carButtons.length);
 carButtons.forEach(btn => {
   btn.addEventListener('click', (e) => {
-    console.log('Car button clicked:', btn.getAttribute('data-car-type'));
     const carType = btn.getAttribute('data-car-type');
     const success = game.selectCar(carType);
     
-    console.log('Selection success:', success);
     if (success) {
       // Update visual selection state
       document.querySelectorAll('.car-btn').forEach(b => b.classList.remove('selected'));

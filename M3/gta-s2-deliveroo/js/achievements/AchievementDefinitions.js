@@ -105,8 +105,7 @@ export const ACHIEVEMENTS = [
     {
         id: 'hard_learner',
         title: 'Lepiej późno niż wcale',
-        description: `Rozbij samochód przynajmniej 7 razy 
-        na danym poziomie zanim go ukończysz`,
+        description: `Rozbij samochód min. 7 razy na danym poziomie zanim go ukończysz`,
         category: ACHIEVEMENT_CATEGORIES.CRASHES,
         isUnlocked: false,
         checkUnlock: (data) => {

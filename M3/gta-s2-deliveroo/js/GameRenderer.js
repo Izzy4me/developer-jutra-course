@@ -33,14 +33,8 @@ export class GameRenderer {
     draw(gameState) {
         this.ctx.save();
 
-        // TODO: (msmet) it is just temporary, remove it later when feature to collapse UI is added
-        // Hide/show right-side UI container when viewing achievements 
-        try {
-            const uiContainer = document.getElementById('ui-container');
-            if (uiContainer) {
-                uiContainer.style.display = (gameState.state === 'ACHIEVEMENTS_SCREEN') ? 'none' : 'flex';
-            }
-        } catch (e) { /* DOM might not be available in some test environment */}
+        // Apply UI collapse state (renderer-driven approach)
+        this.applyUiCollapseState(gameState);
         
         // Apply screen shake if active
         if (gameState.screenShake > 0) {
@@ -222,5 +216,47 @@ export class GameRenderer {
         return {
             backButton: this.screenRenderer.achievementsBackButtonBounds
         };
+    }
+
+    /**
+     * Apply UI collapse state from game state (renderer-driven approach)
+     */
+    applyUiCollapseState(gameState) {
+        try {
+            const uiContainer = document.getElementById('ui-container');
+            if (uiContainer) {
+                // Always prefer the game state value when it's explicitly set (not null/undefined)
+                let shouldCollapse;
+                if (gameState.uiCollapsed !== null && gameState.uiCollapsed !== undefined) {
+                    shouldCollapse = gameState.uiCollapsed;
+                } else {
+                    // No explicit game state - apply per-screen defaults
+                    shouldCollapse = (gameState.state === 'ACHIEVEMENTS_SCREEN' || gameState.state === 'HISTORY_SCREEN');
+                }
+                
+                // Update DOM with collapse state
+                if (shouldCollapse) {
+                    uiContainer.classList.add('ui-collapsed');
+                } else {
+                    uiContainer.classList.remove('ui-collapsed');
+                }
+                
+                this.updateCollapseButton(shouldCollapse);
+            }
+        } catch (e) { /* DOM might not be available in some test environment */}
+    }
+
+    /**
+     * Update collapse button appearance and aria attributes
+     */
+    updateCollapseButton(shouldCollapse) {
+        try {
+            const collapseBtn = document.getElementById('toggle-ui-collapse');
+            if (collapseBtn) {
+                collapseBtn.setAttribute('aria-expanded', shouldCollapse ? 'false' : 'true');
+                collapseBtn.innerText = shouldCollapse ? '☰' : '✕';
+                collapseBtn.title = shouldCollapse ? 'Pokaż menu (H)' : 'Zwiń menu (H)';
+            }
+        } catch (e) { /* ignore DOM update errors */ }
     }
 }
