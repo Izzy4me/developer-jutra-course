@@ -60,7 +60,7 @@ def handle_command(user_input: str) -> bool:
                     # Display history summary if session has content
                     if has_history:
                         from commands.session_summary import display_history_summary
-                        display_history_summary(new_session.get_history(), new_session.assistant_name)
+                        display_history_summary(new_session.get_history(), new_session.assistant_name, new_session.get_title())
         else:
             console.print_error("Błąd: Użycie: /switch <SESSION-ID>")
             
@@ -69,7 +69,7 @@ def handle_command(user_input: str) -> bool:
         if len(parts) < 2:
             console.print_error("Błąd: Komenda /session wymaga podkomendy (list, display, pop, clear, new).")
         else:
-            handle_session_subcommand(parts[1].lower(), manager)
+            handle_session_subcommand(parts[1].lower(), manager, parts)
 
     elif command == '/pdf':
         current = manager.get_current_session()
@@ -107,8 +107,14 @@ def handle_command(user_input: str) -> bool:
     return False
 
 
-def handle_session_subcommand(subcommand: str, manager):
-    """Handles /session subcommands."""
+def handle_session_subcommand(subcommand: str, manager, parts: list = None):
+    """Handles /session subcommands.
+    
+    Args:
+        subcommand: The subcommand to execute
+        manager: SessionManager instance
+        parts: Full command parts list (for rename command)
+    """
     current = manager.get_current_session()
     
     if subcommand == 'list':
@@ -122,7 +128,7 @@ def handle_session_subcommand(subcommand: str, manager):
         if success:
             from commands.session_summary import display_history_summary
             console.print_info(f"Usunięto ostatnią parę wpisów (TY i {current.assistant_name}).")
-            display_history_summary(current.get_history(), current.assistant_name)
+            display_history_summary(current.get_history(), current.assistant_name, current.get_title())
         else:
             console.print_error("Błąd: Historia jest pusta lub niekompletna (wymaga co najmniej jednej pary).")
             
@@ -145,6 +151,27 @@ def handle_session_subcommand(subcommand: str, manager):
 
     elif subcommand == 'remove':
         remove_session_command(manager)
+    
+    elif subcommand == 'title':
+        from commands.session_title import display_session_title
+        display_session_title(current)
+    
+    elif subcommand == 'rename':
+        # Extract everything after 'rename' as the new title
+        if parts and len(parts) >= 3:
+            # Join all parts after /session rename
+            new_title = ' '.join(parts[2:])
+            
+            # Handle quoted strings properly - strip outer quotes only
+            # This handles both "quoted text" and unquoted text with spaces
+            if (new_title.startswith('"') and new_title.endswith('"')) or \
+               (new_title.startswith("'") and new_title.endswith("'")):
+                new_title = new_title[1:-1]
+            
+            from commands.session_title import rename_session_title
+            rename_session_title(current, new_title, manager)
+        else:
+            console.print_error("Błąd: Użycie: /session rename \"NEW_TITLE\" lub /session rename NEW TITLE")
         
     else:
         console.print_error(f"Błąd: Nieznana podkomenda dla /session: {subcommand}. Użyj /help.")

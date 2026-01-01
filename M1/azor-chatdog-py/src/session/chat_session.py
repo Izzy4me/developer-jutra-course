@@ -28,7 +28,7 @@ class ChatSession:
     Encapsulates session ID, conversation history, assistant, and LLM chat session.
     """
     
-    def __init__(self, assistant: Assistant, session_id: str | None = None, history: List[Any] | None = None):
+    def __init__(self, assistant: Assistant, session_id: str | None = None, history: List[Any] | None = None, title: str | None = None):
         """
         Initialize a chat session.
         
@@ -36,10 +36,12 @@ class ChatSession:
             assistant: Assistant instance that defines the behavior and model for this session
             session_id: Unique session identifier. If None, generates a new UUID.
             history: Initial conversation history. If None, starts empty.
+            title: Session title. If None, will be generated from first user message.
         """
         self.assistant = assistant
         self.session_id = session_id or str(uuid.uuid4())
         self._history = history or []
+        self._title = title
         self._llm_client: Union[GeminiLLMClient, LlamaClient, OllamaRestClient, OllamaPythonClient, None] = None
         self._llm_chat_session = None
         self._max_context_tokens = 32768
@@ -83,13 +85,13 @@ class ChatSession:
         Returns:
             tuple: (ChatSession object or None, error_message or None)
         """
-        history, assistant_id, error = session_files.load_session_history(session_id)
+        history, assistant_id, title, error = session_files.load_session_history(session_id)
         
         if error:
             return None, error
         
         # Note: assistant_id from file is ignored here - SessionManager resolves it
-        session = cls(assistant=assistant, session_id=session_id, history=history)
+        session = cls(assistant=assistant, session_id=session_id, history=history, title=title)
         return session, None
     
     def save_to_file(self) -> tuple[bool, str | None]:
@@ -109,7 +111,8 @@ class ChatSession:
             self._history, 
             self.assistant.system_prompt, 
             self._llm_client.get_model_name(),
-            self.assistant.id
+            self.assistant.id,
+            self._title
         )
     
     def send_message(self, text: str):
@@ -190,6 +193,45 @@ class ChatSession:
         self.save_to_file()
         
         return True
+    
+    def get_title(self) -> str | None:
+        """
+        Returns the session title.
+        
+        Returns:
+            str | None: Session title or None if not set
+        """
+        return self._title
+    
+    def set_title(self, new_title: str):
+        """
+        Sets the session title with validation.
+        Strips newlines and enforces 80 character limit.
+        
+        Args:
+            new_title: New title for the session
+            
+        Raises:
+            ValueError: If title is empty or invalid
+        """
+        # Strip quotes if present
+        cleaned_title = new_title.strip().strip('"').strip("'")
+        
+        # Strip newlines and carriage returns
+        cleaned_title = cleaned_title.replace('\n', ' ').replace('\r', '')
+        
+        # Remove extra whitespace
+        cleaned_title = ' '.join(cleaned_title.split())
+        
+        # Validate
+        if not cleaned_title:
+            raise ValueError("Title cannot be empty")
+        
+        # Enforce 80 character limit
+        if len(cleaned_title) > 80:
+            cleaned_title = cleaned_title[:80]
+        
+        self._title = cleaned_title
     
     def switch_assistant(self, assistant: Assistant):
         """

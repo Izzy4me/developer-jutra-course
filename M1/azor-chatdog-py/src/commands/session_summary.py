@@ -1,13 +1,14 @@
 from typing import List, Dict
 from cli import console
 
-def display_history_summary(history: List[Dict], assistant_name: str):
+def display_history_summary(history: List[Dict], assistant_name: str, session_title: str = None):
     """
-    Wyświetla podsumowanie historii: liczbę pominiętych i ostatnie 2 wiadomości.
+    Wyświetla podsumowanie historii: tytuł sesji, liczbę pominiętych i ostatnie 2 wiadomości.
     
     Args:
         history: Lista słowników w formacie {"role": "user|model", "parts": [{"text": "..."}]}
         assistant_name: Nazwa asystenta do wyświetlenia
+        session_title: Tytuł sesji (opcjonalny)
     """
     total_count = len(history)
     
@@ -21,6 +22,12 @@ def display_history_summary(history: List[Dict], assistant_name: str):
         console.print_info(f"(Pominięto {omitted_count} wcześniejszych wiadomości)")
     else:
         console.print_info(f"\n--- Wątek sesji ---")
+    
+    # Display title if available
+    if session_title:
+        console.print_info(f"Temat: {session_title}")
+    else:
+        console.print_info(f"Temat: Unknown content")
 
     # Display last 2 messages
     last_two = history[-2:]

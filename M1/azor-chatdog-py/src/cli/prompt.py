@@ -13,7 +13,7 @@ from assistant import get_assistant_registry
 
 # --- Configuration ---
 SLASH_COMMANDS = ('/exit', '/quit', '/switch', '/help', '/session', '/pdf', '/assistant')
-SESSION_SUBCOMMANDS = ['list', 'display', 'pop', 'clear', 'new', 'remove']
+SESSION_SUBCOMMANDS = ['list', 'display', 'title', 'rename', 'pop', 'clear', 'new', 'remove']
 ASSISTANT_SUBCOMMANDS = ['list', 'switch']
 
 
@@ -112,13 +112,26 @@ def _create_commands_completer():
         'switch': WordCompleter(assistant_ids, ignore_case=False) if assistant_ids else None
     })
     
+    # Create nested completer for /session with subcommands
+    # Commands that accept free-form text arguments should be None
+    session_completer = NestedCompleter({
+        'list': None,
+        'display': None,
+        'title': None,
+        'rename': None,  # Accepts free-form title text, no completions
+        'pop': None,
+        'clear': None,
+        'new': None,
+        'remove': None
+    })
+    
     return NestedCompleter({
         '/exit': None,
         '/quit': None,
         '/help': None,
         '/switch': None,
         '/pdf': None,
-        '/session': WordCompleter(SESSION_SUBCOMMANDS, ignore_case=False),
+        '/session': session_completer,
         '/assistant': assistant_completer
     })
 
