@@ -1,0 +1,26 @@
+const levelFiles = [
+    'level1.js',
+    'level2.js',
+    'level3.js',
+    'level4.js',
+    'level5.js',
+    'level6.js',
+    'level7.js',
+    'level8.js',
+    'level9.js',
+    'level10.js',
+    'level11.js',
+    'level12.js',
+    'level13.js',
+    'level14.js',
+    'level15.js',
+    'level16.js',
+    'level17.js',
+    'level18.js',
+    'level19.js',
+    'level20.js',
+    'level21.js',
+    'level22.js',
+];
+
+export default levelFiles;
